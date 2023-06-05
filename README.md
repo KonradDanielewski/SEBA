@@ -21,10 +21,10 @@ SEBA uses `HERBS` output to assign to each neuron obtained with `ecephys_spike_s
 For workflow example check `example_notebook`
 
 # Installation:
-`conda env create -n SEBA pip, git`
-`git clone https://github.com/KonradDanielewski/SEBA`
-`cd SEBA`
-`pip install .`
+`conda env create -n SEBA pip, git` \
+`git clone https://github.com/KonradDanielewski/SEBA` \
+`cd SEBA` \
+`pip install .` \
 
 
 Developed by Konrad Danielewski, partially based on script by Kacper Kondrakiewicz https://github.com/KacperKon/EphysAnalysis
