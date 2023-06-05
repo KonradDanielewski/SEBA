@@ -24,7 +24,7 @@ For workflow example check `example_notebook`
 `conda env create -n SEBA pip, git` \
 `git clone https://github.com/KonradDanielewski/SEBA` \
 `cd SEBA` \
-`pip install .` \
+`pip install .`
 
 
 Developed by Konrad Danielewski, partially based on script by Kacper Kondrakiewicz https://github.com/KacperKon/EphysAnalysis
