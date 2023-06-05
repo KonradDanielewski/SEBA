@@ -5,7 +5,7 @@ SEBA is a small package that standardizes and automates exploratory analysis of 
 
 It's based on the output of https://github.com/jenniferColonell/ecephys_spike_sorting for ephys data and https://github.com/JingyiGF/HERBS for probe tracing from histological images.
 
-SEBA can import behavior annotation data from BehaView and BORIS (DLC2Action and SIMBA will be added in future updates) and based on spike data and timestamps of behavior or stimuli it builds a comprehensive data structure which is then used in visualisation and further analysis.
+SEBA can import behavior annotation data from `BehaView` and `BORIS` (`DLC2Action` and `SimBA` will be added in future updates) and based on spike data and timestamps of behavior or stimuli it builds a comprehensive data structure which is then used in visualisation and further analysis.
 
 Expected folder structure is:
 1. data_folder: 
