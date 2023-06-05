@@ -7,7 +7,7 @@ It's based on the output of https://github.com/jenniferColonell/ecephys_spike_so
 
 SEBA can import behavior annotation data from BehaView and BORIS (DLC2Action and SIMBA will be added in future updates) and based on spike data and timestamps of behavior or stimuli it builds a comprehensive data structure which is then used in visualisation and further analysis.
 
-Expected data structure is:
+Expected folder structure is:
 1. data_folder: 
    * ephys_recording_1
    * ephys_recording_2
