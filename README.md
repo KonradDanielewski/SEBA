@@ -44,7 +44,9 @@ Examples of plots that can be created using the package. Users can choose betwee
 ### For workflow example check `example_notebook`
 
 # Installation:
-`conda env create -n SEBA pip, git` \
+`conda env create -n SEBA` \
+`conda install git` \
+`conda install pip` \
 `git clone https://github.com/KonradDanielewski/SEBA` \
 `cd SEBA` \
 `pip install .`
