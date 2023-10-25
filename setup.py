@@ -5,7 +5,7 @@ with open("README.md", 'r') as f:
 
 setuptools.setup(
     name='SEBA',
-    version='0.1',
+    version='0.2',
     author='Konrad Danielewski',
     author_email='kdanielewski@gmail.com',
     description='Simple Ephys-Behavior Analysis',
@@ -15,7 +15,7 @@ setuptools.setup(
         'Programming Language :: Python :: 3',
         'Operating System :: OS Independent'
     ],
-    python_requires='>=3.7',
+    python_requires='>=3.10',
     install_requires=[
         'numpy',
         'seaborn',
