@@ -5,38 +5,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from scipy.ndimage import gaussian_filter1d
-
-
-def read_spikes(spks_dir:str, sampling_rate = 30000.0, read_only = "good"):
-    """
-    Reads spike times as saved by Phy2.
-
-    Args:
-        spks_dir (str): directory with spike times and sorting results
-        sampling_rate (float, optional): Defaults to 30000.0.
-        read_only (str, optional): which cluster type to read ("good" for single units, "mua" for multi unit or "noise" for shit). Defaults to "good".
-
-    Returns:
-        spks_ts (list): a list of numpy arrays, where all timestamps in each array are from one neuron
-        units_id (list): neuron ids
-    """
-    
-    spks = np.load(spks_dir + "spike_times.npy")
-    clst = np.load(spks_dir + "spike_clusters.npy")
-    clst_group = pd.read_csv(spks_dir + "cluster_group.tsv", sep='\t')
-    
-    units_id = np.array(clst_group.cluster_id[clst_group.group == read_only]) # those clusters contain selected type of units
-    spks = 1/sampling_rate * spks # convert sample numbers to time stamps
-
-    spks_ts = []
-    for nrn in units_id:
-        spks_ts.append(spks[clst==nrn])
-        
-    return spks_ts, units_id
-
         
 
-def calc_rasters(spks_ts:list, events_ts:str, pre_event = 1.0, post_event = 3.0):
+def calc_rasters(spks_ts: list, events_ts: str, pre_event = 1.0, post_event = 3.0):
     """
     Centers spikes' timestamps on events' timestamps.
 
@@ -65,7 +36,7 @@ def calc_rasters(spks_ts:list, events_ts:str, pre_event = 1.0, post_event = 3.0)
         
     return centered_ts
 
-def fr_events_binless(centered_ts:list, sigma_sec:float, trunc_gauss = 4, sampling_out = 1000, pre_event = 1.0, post_event = 3.0):
+def fr_events_binless(centered_ts: list, sigma_sec: float, trunc_gauss = 4, sampling_out = 1000, pre_event = 1.0, post_event = 3.0):
     """
     Calculates firing rates in trials by applying a Gaussian kernel (binless).
 
@@ -135,7 +106,7 @@ def fr_events_binless(centered_ts:list, sigma_sec:float, trunc_gauss = 4, sampli
     return all_fr, mean_fr, sem_fr, t_vec
 
 
-def zscore_events(all_fr:list, bin_size:int, pre_event = 1.0, post_event = 3.0):
+def zscore_events(all_fr: list, bin_size: int, pre_event = 1.0, post_event = 3.0):
     """
     Calculates z-score in trials - where baseline is separate for each trial.
 
