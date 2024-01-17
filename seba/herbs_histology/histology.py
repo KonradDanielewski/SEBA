@@ -76,7 +76,10 @@ def get_brain_regions(data_folder:str, histology_folder:str, neuropixels_20=True
         all_shanks = []
 
         for shank in shanks:
-            obj = pd.read_pickle(histology + f"\\probe {shank}.pkl")
+            if neuropixels_20:
+                obj = pd.read_pickle(histology + f"\\probe {shank}.pkl")
+            else:
+                obj = pd.read_pickle(histology + f"\\probe.pkl")
             keys = pd.Series(obj["data"]["region_label"]).unique()
             values = pd.Series(obj["data"]["label_name"]).unique()
 
