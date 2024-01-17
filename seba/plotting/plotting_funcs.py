@@ -484,7 +484,7 @@ def neurons_per_structure(data_folder: str | list, data_obj: dict, save_path: st
         subject_responsive = sum(subject_responsive, [])
         subject_responsive = pd.Series(subject_responsive).unique()
         path = os.path.join(folder, "cluster_info_good.csv")
-        df = pd.read_csv(path, index_col="id")
+        df = pd.read_csv(path, index_col="cluster_id")
         df = df.loc[subject_responsive, "Structure"].value_counts()
         
         per_structure.append(df)
@@ -544,7 +544,7 @@ def neurons_per_event(data_folder: str | list, data_obj:dict, save_path:str, plo
         subject_responsive = sum(subject_responsive, [])
         subject_responsive = pd.Series(subject_responsive).unique()
         path = os.path.join(folder, "cluster_info_good.csv")
-        df = pd.read_csv(path, index_col="id")
+        df = pd.read_csv(path, index_col="cluster_id")
         structures = df["Structure"].unique()
         temp = pd.DataFrame(np.nan, index=structures, columns=behaviors)
         for behavior in behaviors:
