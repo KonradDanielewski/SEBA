@@ -112,14 +112,14 @@ def get_brain_regions(data_folder:str, histology_folder:str, neuropixels_20=True
             if neuropixels_20 :
                 all_shanks.append(temp)
             else:
-                temp = (temp.set_index(temp["id"])
+                temp = (temp.set_index(temp["cluster_id"])
                         .sort_index()
-                        .drop(columns=["id"]))
+                        .drop(columns=["cluster_id"]))
                 temp.to_csv(os.path.join(cluster_info, r"cluster_info_good.csv"))
         if neuropixels_20 :
             output = pd.concat(all_shanks)
             output = (output.reset_index()
-                    .set_index(output["id"])
+                    .set_index(output["cluster_id"])
                     .sort_index()
-                    .drop(columns=["id"]))
+                    .drop(columns=["cluster_id"]))
             output.to_csv(os.path.join(cluster_info, r"cluster_info_good.csv"))
