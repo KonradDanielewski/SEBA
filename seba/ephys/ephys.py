@@ -7,24 +7,27 @@ import pandas as pd
 from scipy.ndimage import gaussian_filter1d
         
 
-def calc_rasters(spks_ts: list, events_ts: str, pre_event = 1.0, post_event = 3.0):
+def calc_rasters(spks_ts: list, events_ts: str, pre_event: float = 1.0, post_event: float = 3.0) -> list[list[np.array]]:
     """
     Centers spikes' timestamps on events' timestamps.
 
     Args:
-        spks_ts (list): list of arrays with neuron timestamps (each array is one neuron)
-        events_ts (str): path to a file with event timestamps
-        pre_event (float, optional): pre event time in seconds. Defaults to 1.0.
-        post_event (float, optional): post event time in seconds. Defaults to 3.0.
+        spks_ts: list of arrays with neuron timestamps (each array is one neuron)
+        events_ts: path to a file with event timestamps
+        pre_event: pre event time in seconds. Defaults to 1.0.
+        post_event: post event time in seconds. Defaults to 3.0.
 
     Returns:
-        centered_ts(list): list of lists of centered arrays
+        centered_ts: list of lists of centered arrays
     """    
 
     centered_ts = []
 
     events_ts = np.loadtxt(events_ts)
     
+    if len(events_ts) == 0:
+        return 
+
     for nrn in spks_ts:
         neuron_ts = []
         for evt in events_ts:
@@ -36,14 +39,13 @@ def calc_rasters(spks_ts: list, events_ts: str, pre_event = 1.0, post_event = 3.
         
     return centered_ts
 
-def fr_events_binless(centered_ts: list, sigma_sec: float, trunc_gauss = 4, sampling_out = 1000, pre_event = 1.0, post_event = 3.0):
+def fr_events_binless(centered_ts: list, sigma_sec: float, sampling_out: int = 1000, pre_event: float = 1.0, post_event: float = 3.0):
     """
     Calculates firing rates in trials by applying a Gaussian kernel (binless).
 
     Args:
         centered_ts (list): output of calc_raster function containing spike timestamps.
         sigma_sec (float): width of the Gaussian kernel in seconds.
-        trunc_gauss (int, optional): the truncation range of the Gaussian, in units of standard deviation. Defaults to 4.
         sampling_out (int, optional): the desired output sampling rate for the firing rate calculation in Hz. Defaults to 1000.
         pre_event (float, optional): pre event time in seconds. Defaults to 1.0.
         post_event (float, optional): post event time in seconds. Defaults to 3.0.
@@ -70,15 +72,8 @@ def fr_events_binless(centered_ts: list, sigma_sec: float, trunc_gauss = 4, samp
 
     t_vec = np.linspace(-pre_event + 1/sampling_out, post_event, nsamples)
 
-
-    # Create the gaussian window
+    # Specify sigma
     sigma = sigma_sec * sampling_out
-    halfwidth = trunc_gauss*sigma # half-width of gaussian window - full width is halfwidth * 2 + 1
-    
-    gaussian = np.arange(-halfwidth, halfwidth + 1)
-    gaussian = 1 / (np.sqrt(2 * np.pi) * sigma) * np.e ** (-np.power(gaussian / sigma, 2) / 2) * sampling_out
-    #gaussian = np.exp(-(gaussian/sigma)**2/2) # a simpler formula - gives some weird scaling
-
     
     # Create empty list/arrays for storing results
     all_fr = []
@@ -90,13 +85,10 @@ def fr_events_binless(centered_ts: list, sigma_sec: float, trunc_gauss = 4, samp
         neuron_fr = np.zeros([ntrials, nsamples])
         
         for trl in range(ntrials):
-            
-            where_spks = centered_ts[nrn][trl] + pre_event
-            where_spks = np.array(np.round(where_spks*sampling_out), int) # find spike indices with the new sampling rate
-            where_spks[where_spks == nsamples] = where_spks[where_spks == nsamples] - 1 # avoid rounding timestamps to indices bigger than data length
+
+            where_spks = np.searchsorted(t_vec, centered_ts[nrn][trl])
 
             neuron_fr[trl, where_spks] = 1 # code spikes as 1
-            #neuron_fr[trl, :] = np.convolve(gaussian, neuron_fr[trl, :], 'same') # do the convoloution
             neuron_fr[trl, :] = gaussian_filter1d(neuron_fr[trl, :], sigma, mode = 'reflect') * sampling_out
             
         all_fr.append(neuron_fr)

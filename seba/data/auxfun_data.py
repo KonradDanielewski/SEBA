@@ -64,16 +64,16 @@ def event_filled_preparation(df_conditions, starts_ser, stops_ser, framerate, me
             pad = int(np.around(pad_size*framerate, 0))
             for start, stop in zip(list(starts_ser.index), list(stops_ser.index)):
                 if start < pad:
-                    df_conditions[f"{subject}_{behavior}"][0:stop+pad] = 1
+                    df_conditions[f"{behavior}_{subject}"][0:stop+pad] = 1
                 if stop+pad > len(df_conditions):
-                    df_conditions[f"{subject}_{behavior}"][start-pad:len(df_conditions)] = 1
+                    df_conditions[f"{behavior}_{subject}"][start-pad:len(df_conditions)] = 1
                 else:
-                    df_conditions[f"{subject}_{behavior}"][start-pad:stop+pad] = 1
+                    df_conditions[f"{behavior}_{subject}"][start-pad:stop+pad] = 1
             if len(starts_ser) > len(stops_ser):
                     df_conditions[name][starts_ser.index[-1]-pad:len(df_conditions)] = 1
         else:
             for start, stop in zip(list(starts_ser.index), list(stops_ser.index)):
-                df_conditions[f"{subject}_{behavior}"][start:stop] = 1
+                df_conditions[f"{behavior}_{subject}"][start:stop] = 1
             if len(starts_ser) > len(stops_ser):
                         df_conditions[name][starts_ser.index[-1]:len(df_conditions)] = 1
 
@@ -116,10 +116,12 @@ def responsive_neurons2events(data_folder: str | list, data_obj: dict):
     responsive_units = data_obj["responsive_units"]
 
     for folder, rat in zip(data_folder, responsive_units):
-        df = pd.read_csv(os.path.join(folder, "cluster_info_good.csv"), index_col='id')
+        df = pd.read_csv(os.path.join(folder, "cluster_info_good.csv"), index_col='cluster_id')
         col_names = responsive_units[rat].keys()
         for col_name in col_names:
             df[col_name] = np.nan
+            if responsive_units[rat][col_name] == None:
+                continue
             df.loc[responsive_units[rat][col_name], col_name] = 1
         df.to_csv(os.path.join(folder, "cluster_info_good.csv"))
 
@@ -133,13 +135,26 @@ def responsive_units_wilcoxon(data_obj: dict, conditions: List, rats: str, pre_e
     fdr_test = pd.Series(dtype="float64")
     for condition in data_obj["all_fr_events_per_rat"]:
         for rat in data_obj["all_fr_events_per_rat"][condition]:
-            for idx, unit_id in enumerate(data_obj["units_ids"][rat]):
+            if data_obj["centered_spike_timestamps"][condition][rat] == None:
+                    continue
+            for idx, unit_id in enumerate(data_obj["unit_ids"][rat]):
+                n_events = len(data_obj["centered_spike_timestamps"][condition][rat][idx])
+                    
+                if n_events == 0:
+                    continue
+                
                 col_axis = np.around(np.arange(-abs(pre_event), post_event, bin_size), 2)
                 df = pd.DataFrame(data_obj["all_fr_events_per_rat"][condition][rat][idx]).set_axis(col_axis, axis=1)
                 event = df.iloc[:, int(pre_event/bin_size):].mean(axis=1)
+                
+                invalid = sum([1 if len(i) < 10 else 0 for i in data_obj["centered_spike_timestamps"][condition][rat][idx]])
+                
+                if invalid/n_events > 0.5:
+                    continue
+                
                 baseline = df.iloc[:, :int(pre_event/bin_size)].mean(axis=1)
                 #Take p-value only
-                if any(event)  and len(event) > 10:
+                if any(event) and len(event) > 10:
                     wilcoxon = stats.wilcoxon(event, baseline, correction=True, zero_method="zsplit", method="approx")[1]
                     if wilcoxon < p_bound:
                         fdr_test.loc[f"{rat}#{condition}#{unit_id}"] = wilcoxon

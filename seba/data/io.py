@@ -15,9 +15,9 @@ def read_bvs(filepath: str, framerate: int, save_path: str):
     Reads BehaActive behavior annotation data from .bvs files
 
     Args:
-        filepath (str): path to the .bvs file
-        framerate (int): framerate of the video
-        save_path (str): path to the folder containing animal ephys data
+        filepath: path to the .bvs file
+        framerate: framerate of the video
+        save_path: path to the folder containing animal ephys data
 
     Returns:
         Creates "events" folder in the save_path. Saves events_readout.csv that contains columns with a frame number and behavior. 
@@ -50,19 +50,27 @@ def read_bvs(filepath: str, framerate: int, save_path: str):
         save_path = os.path.join(save_path, "events")
     events.to_csv(os.path.join(save_path, "events_readout.csv"))
 
-def extract_raw_events_TS_BehaView(data_folder: str | list, framerate: int, append_CS=False, CS_filename=None, CS_len=None, padding=False, pad_size=None):
+def extract_raw_events_TS_BehaView(
+    data_folder: str | list,
+    framerate: int,
+    append_CS: bool = False,
+    CS_filename: None | str = None,
+    CS_len: None | int = None,
+    padding: bool = False,
+    pad_size: None | int = None
+    ):
     """
     Divides all annotations to specific events with their timestamps synced to ephys data
 
     Args:
-        data_folder (str): path to a folder containing all ephys data folders
-        events_readout (str): path to events_readout.csv file
-        camera_TTL (str): path to file containing camera frame timestamps
-        framerate (int): framerate of the video
-        append_CS (bool): whether to append conditioned stimulus onset timestamps. Defaults to False
-        CS_len (int): length of the conditioned stimulus in seconds
-        padding (bool): Toggles if event data should be 1-padded around it to make conditions more conservative. Applied to before onset and after offset
-        pad_size (float): in seconds, how big the padding should be
+        data_folder: path to a folder containing all ephys data folders
+        events_readout: path to events_readout.csv file
+        camera_TTL: path to file containing camera frame timestamps
+        framerate: framerate of the video
+        append_CS: whether to append conditioned stimulus onset timestamps. Defaults to False
+        CS_len: length of the conditioned stimulus in seconds
+        padding: Toggles if event data should be 1-padded around it to make conditions more conservative. Applied to before onset and after offset
+        pad_size: in seconds, how big the padding should be
     Returns:
         In animal folder creates events subfolder where it saves timestamps of onsets and offsets of events and events_filled_conditions.csv
         that contains per frame bool status of events
@@ -121,18 +129,27 @@ def extract_raw_events_TS_BehaView(data_folder: str | list, framerate: int, appe
         else:
             output.to_csv(os.path.join(folder, f"events\\events_filled_conditions{pad}.csv"), index_label="frame_id") 
 
-def read_extract_boris(data_folder: str | list, boris_output: str, camera_TTL: str, append_CS=False, CS_filename=None, CS_len=None, padding=False, pad_size=None):
+def read_extract_boris(
+    data_folder: str | list,
+    boris_output: str,
+    camera_TTL: str,
+    append_CS: bool = False,
+    CS_filename: None | str = None,
+    CS_len: None | int = None,
+    padding: bool = False,
+    pad_size: None | int = None
+    ):
     """
     Reads and extracts behavior annotations from Boris
 
     Args:
-        data_folder (str): path to a folder containing all ephys data folders
-        boris_output (str): path to output of Boris with behavior annotations
-        camera_TTL (str): path to file containing camera frame timestamps 
-        append_CS (bool, optional): whether to append conditioned stimulus onset timestamps. Defaults to False
-        CS_len (int, optional): length of the conditioned stimulus in seconds
-        padding (bool): Toggles if event data should be 1-padded around it to make conditions more conservative. Applied to before onset and after offset
-        pad_size (float): in seconds, how big the padding should be
+        data_folder: path to a folder containing all ephys data folders
+        boris_output: path to output of Boris with behavior annotations
+        camera_TTL: path to file containing camera frame timestamps 
+        append_CS: whether to append conditioned stimulus onset timestamps. Defaults to False
+        CS_len: length of the conditioned stimulus in seconds
+        padding: Toggles if event data should be 1-padded around it to make conditions more conservative. Applied to before onset and after offset
+        pad_size: in seconds, how big the padding should be
     """
     try:
         if isinstance(data_folder, list):
@@ -175,17 +192,26 @@ def read_extract_boris(data_folder: str | list, boris_output: str, camera_TTL: s
             for behavior in behaviors:
                 starts_ser = df.query(f"Subject == '{subject}' & Behavior == '{behavior}' & Status == 'START'").copy()
                 stops_ser = df.query(f"Subject == '{subject}' & Behavior == '{behavior}' & Status == 'STOP'").copy()
+                starts = np.array(starts_ser["Time"] + cam_TTL.values[0])
+                stops = np.array(stops_ser["Time"] + cam_TTL.values[0])
 
-                starts_ser =  cam_TS.iloc[(starts_ser["Time"] * framerate).astype(int)]
-                stops_ser = cam_TS.iloc[(stops_ser["Time"] * framerate).astype(int)]
+
+                starts = np.searchsorted(cam_TTL.values.reshape(len(cam_TTL)), starts)
+                stops = np.searchsorted(cam_TTL.values.reshape(len(cam_TTL)), stops)
+
+                starts = cam_TTL.iloc[starts]
+                stops = cam_TTL.iloc[stops]
+
+                if len(starts_ser) > 0:
+                    np.savetxt(os.path.join(save_path, f"{behavior}_{subject}_onsets.txt"), starts, fmt='%1.6f')
+                if len(stops_ser) > 0:
+                    np.savetxt(os.path.join(save_path, f"{behavior}_{subject}_offsets.txt"), stops, fmt='%1.6f')
+                
+                starts = cam_TTL.iloc[starts]
+                stops = cam_TTL.iloc[stops]
 
                 if len(starts_ser) != len(stops_ser):
                     stops_ser[len(stops_ser) + 1] = cam_TTL.iloc[-1]
-
-                if len(starts_ser) > 0:
-                    np.savetxt(os.path.join(save_path, f"{subject}_{behavior}_onsets.txt"), starts_ser, fmt='%1.6f')
-                if len(stops_ser) > 0:
-                    np.savetxt(os.path.join(save_path, f"{subject}_{behavior}_offsets.txt"), stops_ser, fmt='%1.6f')
 
                 auxfun_data.event_filled_preparation(df_conditions=df_conditions, starts_ser=starts_ser, stops_ser=stops_ser, 
                                          framerate=framerate, method="boris", padding=padding, 
@@ -205,4 +231,4 @@ def read_extract_boris(data_folder: str | list, boris_output: str, camera_TTL: s
             output.to_csv(os.path.join(save_path, f"events_filled_conditions.csv"), index_label="frame_id")
         else:
             output.to_csv(os.path.join(save_path, f"events_filled_conditions{pad}.csv"), index_label="frame_id")
-        output_raw.to_csv(os.path.join(save_path, "events_readout.csv"), index_label="frame_id") 
+        output_raw.to_csv(os.path.join(save_path, "events_readout.csv"), index_label="frame_id")

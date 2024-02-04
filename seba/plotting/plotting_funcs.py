@@ -13,15 +13,15 @@ import seaborn as sns
 
 from seba.plotting import auxfun_ploting
 
-def plot_common_nrns_matrix(data_obj: dict, save_path: str, per_animal=False, percent_all_neurons=True):
+def plot_common_nrns_matrix(data_obj: dict, save_path: str, per_animal: bool = False, percent_all_neurons: bool = True):
     """
     Function creating matrix plot of a perctage of common responsive neurons between pairs of events
 
     Args:
-        data_obj (dict): output of structurize_data. Stored in ephys_data.pickle
-        save_path (str): path to which the plots will be saved. Additional subfolders will be created on per-animal basis
-        per_animal (bool, optional): Toggles if the regression is done and plotted for all recorded neurons or on per-animal basis. Defaults to False.
-        percent_all_neurons (bool, optional): Toggles whether to show values as percentage of all neurons or percentage of responsive neurons. Defaults to True.
+        data_obj: output of structurize_data. Stored in ephys_data.pickle
+        save_path: path to which the plots will be saved. Additional subfolders will be created on per-animal basis
+        per_animal: Toggles if the regression is done and plotted for all recorded neurons or on per-animal basis. Defaults to False.
+        percent_all_neurons: Toggles whether to show values as percentage of all neurons or percentage of responsive neurons. Defaults to True.
     Returns:
         Saves a matrix of the amount of common responsive neurons across event pairs
     """    
@@ -39,7 +39,7 @@ def plot_common_nrns_matrix(data_obj: dict, save_path: str, per_animal=False, pe
                 df[event] = per_event2
             
             if percent_all_neurons :
-                nrns = len(data_obj["units_ids"][animal])
+                nrns = len(data_obj["unit_ids"][animal])
                 df = df/nrns*100
             else:
                 nrns = []
@@ -69,7 +69,7 @@ def plot_common_nrns_matrix(data_obj: dict, save_path: str, per_animal=False, pe
         if percent_all_neurons :
             nrns = []
             for animal in animals:
-                nrns.append(len(data_obj["units_ids"][animal]))
+                nrns.append(len(data_obj["unit_ids"][animal]))
             df = df/sum(nrns)*100
         else: 
             nrns = []
@@ -86,16 +86,16 @@ def plot_common_nrns_matrix(data_obj: dict, save_path: str, per_animal=False, pe
 
         auxfun_ploting.make_common_matrix(df, save_path, per_animal=per_animal)
 
-def plot_psths(data_obj: dict, save_path: str, responsive_only=False, z_score=True, ylimit= [-1, 2.5]):
+def plot_psths(data_obj: dict, save_path: str, responsive_only: bool = False, z_score: bool = True, ylimit: list[float, float] = [-1, 2.5]):
     """
     Function used for plotting psths using either z-score or raw firing rate
 
     Args:
-        data_obj (dict): output of structurize_data function. Object containing ephys data structure
-        save_path (str): path to which the plots will be saved. Additional subfolders will be created on per-animal basis
-        responsive_only (bool, optional): Toggles whether to plot for all recorded cells or only the ones deemed significantly responsive. Defaults to False
-        z_score (bool, optional): if to use z-score or raw firing rate. Defaults to True.
-        ylimit (list, optional): y_axis limit, first value is lower, second is upper bound. Defaults to [2.5, 2.5].
+        data_obj: output of structurize_data function. Object containing ephys data structure
+        save_path: path to which the plots will be saved. Additional subfolders will be created on per-animal basis
+        responsive_only: Toggles whether to plot for all recorded cells or only the ones deemed significantly responsive. Defaults to False
+        z_score: if to use z-score or raw firing rate. Defaults to True.
+        ylimit: y_axis limit, first value is lower, second is upper bound. Defaults to [2.5, 2.5].
     Returns:
         Saves plots to set location, creating subfolders on per-animal basis. Each plot is named using event name and neuron ID
     """    
@@ -109,7 +109,7 @@ def plot_psths(data_obj: dict, save_path: str, responsive_only=False, z_score=Tr
     subjects = list(data_obj["responsive_units"].keys())
     behaviors = list(data_obj["responsive_units"][subjects[0]].keys())
 
-    unit_ids = data_obj["units_ids"]
+    unit_ids = data_obj["unit_ids"]
     responsive_ids = data_obj["responsive_units"]
     
     for behavior in behaviors:
@@ -158,17 +158,24 @@ def plot_psths(data_obj: dict, save_path: str, responsive_only=False, z_score=Tr
                 plt.close(fig)
 
 
-def plot_psths_paired(data_obj: dict, behavioral_pair: list, save_path: str, responsive_only=False, z_score=True, ylimit= [-1, 2.5]):
+def plot_psths_paired(
+    data_obj: dict,
+    behavioral_pair: list,
+    save_path: str,
+    responsive_only: bool = False,
+    z_score: bool = True,
+    ylimit: list[float, float] = [-1, 2.5]
+    ):
     """
     Function used for plotting psths using either z-score or raw firing rate
 
     Args:
-        data_obj (dict): output of structurize_data function. Object containing ephys data structure
-        behavioral_pair (list): list of two keys to plot together, assumes [subject, partner] order e.g., ["freezing_subject", "freezing_partner"]
-        save_path (str): path to which the plots will be saved. Additional subfolders will be created on per-animal basis
-        responsive_only (bool, optional): Toggles whether to plot for all recorded cells or only the ones deemed significantly responsive. Defaults to False
-        z_score (bool, optional): if to use z-score or raw firing rate. Defaults to True.
-        ylimit (list, optional): y_axis limit, first value is lower, second is upper bound. Defaults to [2.5, 2.5].
+        data_obj: output of structurize_data function. Object containing ephys data structure
+        behavioral_pair: list of two keys to plot together, assumes [subject, partner] order e.g., ["freezing_subject", "freezing_partner"]
+        save_path: path to which the plots will be saved. Additional subfolders will be created on per-animal basis
+        responsive_only: Toggles whether to plot for all recorded cells or only the ones deemed significantly responsive. Defaults to False
+        z_score: if to use z-score or raw firing rate. Defaults to True.
+        ylimit: y_axis limit, first value is lower, second is upper bound. Defaults to [2.5, 2.5].
     Returns:
         Saves plots to set location, creating subfolders on per-animal basis. Each plot is named using event name and neuron ID
     """    
@@ -182,7 +189,7 @@ def plot_psths_paired(data_obj: dict, behavioral_pair: list, save_path: str, res
 
     y_axis, subjects, partners = auxfun_ploting.load_dict(which="all_rats", z_score=z_score, data_obj=data_obj, behavioral_pair=behavioral_pair, single=False)
 
-    unit_ids = data_obj["units_ids"]
+    unit_ids = data_obj["unit_ids"]
     responsive_ids = data_obj["responsive_units"]
 
     for animal in unit_ids.keys():
@@ -227,20 +234,28 @@ def plot_psths_paired(data_obj: dict, behavioral_pair: list, save_path: str, res
             fig.savefig(os.path.join(save, f"{filename}_psth_{str(unit_id)}.png"), dpi=100, bbox_inches="tight")
             plt.close(fig)
 
-def plot_lin_reg_scatter(data_obj: dict, behavioral_pair: list, save_path: str, per_animal=False, responsive_only=False, ax_limit=[-4, 4], z_score=True):
+def plot_lin_reg_scatter(
+    data_obj: dict,
+    behavioral_pair: list,
+    save_path: str,
+    per_animal: bool = False,
+    responsive_only: bool = False,
+    ax_limit=[-4, 4],
+    z_score: bool = True
+    ):
     """
     Creates scatter plots with regression results showing linear relationship between neuron
     responses to subjects' and partners' behaviors
 
     Args:
-        data_obj (dict): output of structurize_data function. Object containing ephys data structure
-        behavioral_pair (list): list of two keys to plot together, assumes [subject, partner] order e.g., ["freezing_subject", "freezing_partner"]
-        save_path (str): path to which the plots will be saved. Additional subfolders will be created on per-animal basis
-        responsive_only (bool): Toggles whether to plot for all recorded cells or only the ones deemed significantly responsive. Defaults to False
-        per_animal (bool, optional): Toggles if the regression is done and plotted for all recorded neurons
+        data_obj: output of structurize_data function. Object containing ephys data structure
+        behavioral_pair: list of two keys to plot together, assumes [subject, partner] order e.g., ["freezing_subject", "freezing_partner"]
+        save_path: path to which the plots will be saved. Additional subfolders will be created on per-animal basis
+        responsive_only: Toggles whether to plot for all recorded cells or only the ones deemed significantly responsive. Defaults to False
+        per_animal: Toggles if the regression is done and plotted for all recorded neurons
             or on per-animal basis. Defaults to False.
-        ax_limit (list, optional): axes limits, assumes 0 centered, even per axis. First value is x axis, second is y axis. Defaults to [-4, 4].
-        z_score (bool): required for compatibility. Always True
+        ax_limit: axes limits, assumes 0 centered, even per axis. First value is x axis, second is y axis. Defaults to [-4, 4].
+        z_score: required for compatibility. Always True
     Returns:
         Saves a scatter plot to a desired location with results of linear regression containing slope, r-value and p-value of the fit. 
     """    
@@ -292,18 +307,27 @@ def plot_lin_reg_scatter(data_obj: dict, behavioral_pair: list, save_path: str, 
             #Make plots
             auxfun_ploting.make_paired_scatter(df, filename, behavioral_pair, ax_limit, save_here)
 
-def plot_heatmaps(data_obj: dict, save_path: str, per_animal=False, responsive_only=False, colormap = "inferno", z_score=True, x_tick=50, y_tick=25):
+def plot_heatmaps(
+    data_obj: dict,
+    save_path: str,
+    per_animal: bool = False,
+    responsive_only: bool = False,
+    colormap: str = "inferno",
+    z_score: bool = True,
+    x_tick: int = 50,
+    y_tick: int = 25
+    ):
     """
     Plots paired heatmaps for sorted neurons comparison (how the same neuron responed to self and parters' behavior)
 
     Args:
-        data_obj (dict): output of structurize_data function. Object containing ephys data structure
-        save_path (str): path to which the plots will be saved. Additional subfolders will be created on per-animal basis
-        per_animal (bool, optional): Toggles if the regression is done and plotted for all recorded neurons
+        data_obj: output of structurize_data function. Object containing ephys data structure
+        save_path: path to which the plots will be saved. Additional subfolders will be created on per-animal basis
+        per_animal: Toggles if the regression is done and plotted for all recorded neurons
             or on per-animal basis. Defaults to False.
-        responsive_only (bool, optional): Toggles whether to plot for all recorded cells or only the ones deemed significantly responsive. Defaults to False
-        colormap (str, optional): matplotlib colormap used for heatmap plotting. Defaults to "viridis".
-        z_score (bool): required for compatibility. Always True
+        responsive_only: Toggles whether to plot for all recorded cells or only the ones deemed significantly responsive. Defaults to False
+        colormap: matplotlib colormap used for heatmap plotting. Defaults to "viridis".
+        z_score: required for compatibility. Always True
     Returns:
         Saves figures to desired location. If per-animal makes/uses folders with animal name
     """
@@ -332,7 +356,7 @@ def plot_heatmaps(data_obj: dict, save_path: str, per_animal=False, responsive_o
                         meaned_subs = i.mean(axis=0)
                         temp_subject.append(meaned_subs)
                     
-                    df_subs = pd.DataFrame(temp_subject, index=data_obj["units_ids"][animal]).loc[responsive_units]
+                    df_subs = pd.DataFrame(temp_subject, index=data_obj["unit_ids"][animal]).loc[responsive_units]
 
                     responsive_subject.append(df_subs)
 
@@ -358,7 +382,7 @@ def plot_heatmaps(data_obj: dict, save_path: str, per_animal=False, responsive_o
                 
                     if responsive_only :
                         responsive_units = pd.Series(data_obj["responsive_units"][animal][behavior], dtype="float64").unique()            
-                        subject = (pd.DataFrame(np.array(subjects[animal]).mean(axis=1), index=data_obj["units_ids"][animal], columns=col_axis)
+                        subject = (pd.DataFrame(np.array(subjects[animal]).mean(axis=1), index=data_obj["unit_ids"][animal], columns=col_axis)
                                 .loc[responsive_units])
 
                         auxfun_ploting.make_heatmap(subject, onset_col_idx, colormap, y_axis, behavior, save_here, x_tick, y_tick)
@@ -367,19 +391,29 @@ def plot_heatmaps(data_obj: dict, save_path: str, per_animal=False, responsive_o
 
                         auxfun_ploting.make_paired_heatmap(subject, onset_col_idx, colormap, y_axis, behavior, save_here, x_tick, y_tick)
 
-def plot_heatmaps_paired(data_obj: dict, behavioral_pair: list, save_path: str, per_animal=False, responsive_only=False, colormap = "inferno", z_score=True, x_tick=50, y_tick=25):
+def plot_heatmaps_paired(
+    data_obj: dict,
+    behavioral_pair: list,
+    save_path: str,
+    per_animal: bool = False,
+    responsive_only: bool = False,
+    colormap: str = "inferno",
+    z_score: bool = True,
+    x_tick: int = 50,
+    y_tick:int = 25
+    ):
     """
     Plots paired heatmaps for sorted neurons comparison (how the same neuron responed to self and parters' behavior)
 
     Args:
-        data_obj (dict): output of structurize_data function. Object containing ephys data structure
-        behavioral_pair (list): list of two keys to plot together, assumes [subject, partner] order e.g., ["freezing_subject", "freezing_partner"]
-        save_path (str): path to which the plots will be saved. Additional subfolders will be created on per-animal basis
-        per_animal (bool, optional): Toggles if the regression is done and plotted for all recorded neurons
+        data_obj: output of structurize_data function. Object containing ephys data structure
+        behavioral_pair: list of two keys to plot together, assumes [subject, partner] order e.g., ["freezing_subject", "freezing_partner"]
+        save_path: path to which the plots will be saved. Additional subfolders will be created on per-animal basis
+        per_animal: Toggles if the regression is done and plotted for all recorded neurons
             or on per-animal basis. Defaults to False.
-        responsive_only (bool, optional): Toggles whether to plot for all recorded cells or only the ones deemed significantly responsive. Defaults to False
-        colormap (str, optional): matplotlib colormap used for heatmap plotting. Defaults to "viridis".
-        z_score (bool): required for compatibility. Always True
+        responsive_only: Toggles whether to plot for all recorded cells or only the ones deemed significantly responsive. Defaults to False
+        colormap: matplotlib colormap used for heatmap plotting. Defaults to "viridis".
+        z_score: required for compatibility. Always True
     Returns:
         Saves figures to desired location. If per-animal makes/uses folders with animal name
     """
@@ -400,6 +434,9 @@ def plot_heatmaps_paired(data_obj: dict, behavioral_pair: list, save_path: str, 
 
             for animal in subjects:
                 
+                if (np.concatenate(subjects[animal]) == None).all() or (np.concatenate(partners[animal]) == None).all():
+                    continue
+                
                 responsive_units = pd.Series(data_obj["responsive_units"][animal][behavioral_pair[0]] + data_obj["responsive_units"][animal][behavioral_pair[1]], dtype="float64").unique()
                 temp_subject = []
                 temp_partner = []
@@ -410,8 +447,8 @@ def plot_heatmaps_paired(data_obj: dict, behavioral_pair: list, save_path: str, 
                     temp_subject.append(meaned_subs)
                     temp_partner.append(meaned_partns)
                 
-                df_subs = pd.DataFrame(temp_subject, index=data_obj["units_ids"][animal]).loc[responsive_units]
-                df_partns = pd.DataFrame(temp_partner, index=data_obj["units_ids"][animal]).loc[responsive_units]
+                df_subs = pd.DataFrame(temp_subject, index=data_obj["unit_ids"][animal]).loc[responsive_units]
+                df_partns = pd.DataFrame(temp_partner, index=data_obj["unit_ids"][animal]).loc[responsive_units]
 
                 responsive_subjects.append(df_subs)
                 responsive_partners.append(df_partns)
@@ -443,9 +480,9 @@ def plot_heatmaps_paired(data_obj: dict, behavioral_pair: list, save_path: str, 
         
             if responsive_only :
                 responsive_units = pd.Series(data_obj["responsive_units"][animal][behavioral_pair[0]] + data_obj["responsive_units"][animal][behavioral_pair[1]], dtype="float64").unique()            
-                subject = (pd.DataFrame(np.array(subjects[animal]).mean(axis=1), index=data_obj["units_ids"][animal], columns=col_axis)
+                subject = (pd.DataFrame(np.array(subjects[animal]).mean(axis=1), index=data_obj["unit_ids"][animal], columns=col_axis)
                            .loc[responsive_units])
-                partner = (pd.DataFrame(np.array(partners[animal]).mean(axis=1), index=data_obj["units_ids"][animal], columns=col_axis)
+                partner = (pd.DataFrame(np.array(partners[animal]).mean(axis=1), index=data_obj["unit_ids"][animal], columns=col_axis)
                            .loc[responsive_units])
 
                 auxfun_ploting.make_paired_heatmap(subject, partner, behavioral_pair, onset_col_idx, colormap, y_axis, filename, save_here, x_tick, y_tick)
@@ -455,15 +492,15 @@ def plot_heatmaps_paired(data_obj: dict, behavioral_pair: list, save_path: str, 
 
                 auxfun_ploting.make_paired_heatmap(subject, partner, behavioral_pair, onset_col_idx, colormap, y_axis, filename, save_here, x_tick, y_tick)
 
-def neurons_per_structure(data_folder: str | list, data_obj: dict, save_path: str, plot=True):
+def neurons_per_structure(data_folder: str | list, data_obj: dict, save_path: str, plot: bool = True):
     """
     Summary of a number of neurons recorded from each structure
 
     Args:
-        data_folder (str): path to a folder containing all ephys data folders
-        data_obj (dict): output of structurize_data function. Object containing ephys data structure
-        save_path (path): path to which the plots and csv files will be saved
-        plot (bool): default True, plots simple bar plot summarizing neurons per structure
+        data_folder: path to a folder containing all ephys data folders
+        data_obj: output of structurize_data function. Object containing ephys data structure
+        save_path: path to which the plots and csv files will be saved
+        plot: default True, plots simple bar plot summarizing neurons per structure
     Returns:
         Saves histograms of a number of neurons per structure and csv files with the data 
     """
@@ -511,16 +548,16 @@ def neurons_per_structure(data_folder: str | list, data_obj: dict, save_path: st
         fig.clf()
 
 
-def neurons_per_event(data_folder: str | list, data_obj:dict, save_path:str, plot=True):
+def neurons_per_event(data_folder: str | list, data_obj: dict, save_path: str, plot: bool = True):
     """
     Summary of a number of neurons per animal, event in a csv, creates csv for each structure
     NOTE: Neurons are repeated if a neuron is responsive to more than one behavior.
     
     Args:
-        data_folder (str): path to a folder containing all ephys data folders
-        data_obj (dict): output of structurize_data function. Object containing ephys data structure
-        save_path (path): path to which the plots and csv files will be saved
-        plot (bool): default True, if True creates simple bar plots per strucutre, x axis are events, y axis are neurons
+        data_folder: path to a folder containing all ephys data folders
+        data_obj: output of structurize_data function. Object containing ephys data structure
+        save_path: path to which the plots and csv files will be saved
+        plot: default True, if True creates simple bar plots per strucutre, x axis are events, y axis are neurons
     Returns:
         Saves histograms and data per event to desired location
     """
