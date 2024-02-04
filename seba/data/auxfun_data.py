@@ -116,7 +116,7 @@ def responsive_neurons2events(data_folder: str | list, data_obj: dict):
     responsive_units = data_obj["responsive_units"]
 
     for folder, rat in zip(data_folder, responsive_units):
-        df = pd.read_csv(os.path.join(folder, "cluster_info_good.csv"), index_col='cluster_id')
+        df = pd.read_csv(os.path.join(folder, "cluster_info_good.csv"), index_col="cluster_id")
         col_names = responsive_units[rat].keys()
         for col_name in col_names:
             df[col_name] = np.nan
