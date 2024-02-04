@@ -5,6 +5,7 @@
 import os
 import pickle
 from glob import glob
+from itertools import combinations_with_replacement
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -13,7 +14,12 @@ import seaborn as sns
 
 from seba.plotting import auxfun_ploting
 
-def plot_common_nrns_matrix(data_obj: dict, save_path: str, per_animal: bool = False, percent_all_neurons: bool = True):
+def plot_common_nrns_matrix(
+    data_obj: dict,
+    save_path: str,
+    per_animal: bool = False,
+    percent_all_neurons: bool = True,
+    ):
     """
     Function creating matrix plot of a perctage of common responsive neurons between pairs of events
 
@@ -26,76 +32,55 @@ def plot_common_nrns_matrix(data_obj: dict, save_path: str, per_animal: bool = F
         Saves a matrix of the amount of common responsive neurons across event pairs
     """    
 
-    animals = data_obj["responsive_units"].keys()
-    events = data_obj["responsive_units"][list(animals)[0]].keys()
+    rec_names = data_obj["responsive_units"].keys()
+    events = data_obj["responsive_units"][list(rec_name)[0]].keys()
 
-    if per_animal :
-        for animal in animals:
+    if per_animal:
+        for rec_names in rec_names:
             df = pd.DataFrame(np.nan, index=events, columns=events)
-            for event in events:
-                    
-                for event2 in events:
-                    per_event2[event2] = len(np.intersect1d(data_obj["responsive_units"][animal][event], data_obj["responsive_units"][animal][event2]))
-                df[event] = per_event2
+            for event1, event2 in combinations_with_replacement(events, 2):
+                df.loc[event2, event1] = len(np.intersect1d(
+                    data_obj["responsive_units"][rec_names][event1],
+                    data_obj["responsive_units"][rec_names][event2])
+                    )
             
-            if percent_all_neurons :
-                nrns = len(data_obj["unit_ids"][animal])
+            if percent_all_neurons:
+                nrns = len(data_obj["unit_ids"][rec_names])
                 df = df/nrns*100
-            else:
-                nrns = []
-                for event in data_obj["responsive_units"][animal]:
-                    nrns.append(data_obj["responsive_units"][animal][event])
-                nrns = pd.Series(sum(nrns, []))
-                nrns = list(nrns.unique())
-                df = df/sum(nrns)*100
-                
-                for event in events:
-                    nrns.append(len(data_obj["responsive_units"][animal][event]))
-                df = df/sum(nrns)*100
             
-            auxfun_ploting.make_common_matrix(df, save_path, per_animal=per_animal, animal=animal)
+            auxfun_ploting.make_common_matrix(df, save_path, per_animal=per_animal, animal=rec_names)
+    else:
+        df = pd.DataFrame(np.zeros((len(events), len(events))), index=events, columns=events)
+                
+        for rec_names in rec_names:
+            for event1, event2 in combinations_with_replacement(events, 2):
+                count = len(np.intersect1d(data_obj["responsive_units"][rec_names][event1], 
+                                        data_obj["responsive_units"][rec_names][event2]))
+                df.loc[event2, event1] += count
 
-    if per_animal == False:
-        df = pd.DataFrame(np.nan, index=events, columns=events)
-        for animal in animals:
-            temp = pd.DataFrame(np.nan, index=events, columns=events)
-            for event in events:
-                per_event2 = {key: None for key in events}
-                for event2 in events:
-                    per_event2[event2] = len(np.intersect1d(data_obj["responsive_units"][animal][event], data_obj["responsive_units"][animal][event2]))
-                temp[event] = per_event2
-            df = df.add(temp, fill_value=0)
-
-        if percent_all_neurons :
+        if percent_all_neurons:
             nrns = []
-            for animal in animals:
-                nrns.append(len(data_obj["unit_ids"][animal]))
+            for rec_names in rec_names:
+                nrns.append(len(data_obj["unit_ids"][rec_names]))
             df = df/sum(nrns)*100
-        else: 
-            nrns = []
-            for subject in list(data_obj["responsive_units"].keys()):
-                subject_responsive = []
-                for behavior in list(data_obj["responsive_units"][subject].keys()):
-                    responsive_units = data_obj["responsive_units"][subject][behavior]
-                    subject_responsive.append(responsive_units)
-                subject_responsive = sum(subject_responsive, [])
-                subject_responsive = len(pd.Series(subject_responsive).unique())
-                nrns.append(subject_responsive)
-            nrns = sum(nrns)
-            df = df/nrns*100
 
         auxfun_ploting.make_common_matrix(df, save_path, per_animal=per_animal)
 
-def plot_psths(data_obj: dict, save_path: str, responsive_only: bool = False, z_score: bool = True, ylimit: list[float, float] = [-1, 2.5]):
-    """
-    Function used for plotting psths using either z-score or raw firing rate
+def plot_psths(
+    data_obj: dict,
+    save_path: str,
+    responsive_only: bool = False,
+    z_score: bool = True,
+    ylimit: list[float, float] = [-1, 2.5],
+    ):
+    """Function used for plotting psths using either z-score or raw firing rate
 
     Args:
         data_obj: output of structurize_data function. Object containing ephys data structure
         save_path: path to which the plots will be saved. Additional subfolders will be created on per-animal basis
         responsive_only: Toggles whether to plot for all recorded cells or only the ones deemed significantly responsive. Defaults to False
         z_score: if to use z-score or raw firing rate. Defaults to True.
-        ylimit: y_axis limit, first value is lower, second is upper bound. Defaults to [2.5, 2.5].
+        ylimit: y_axis limit, first value is lower, second is upper bound. Defaults to [-1, 2.5].
     Returns:
         Saves plots to set location, creating subfolders on per-animal basis. Each plot is named using event name and neuron ID
     """    
@@ -106,41 +91,36 @@ def plot_psths(data_obj: dict, save_path: str, responsive_only: bool = False, z_
     post_event = data_obj["bin_params"]["post_event"]
     bin_size = data_obj["bin_params"]["bin_size"]  
 
-    subjects = list(data_obj["responsive_units"].keys())
-    behaviors = list(data_obj["responsive_units"][subjects[0]].keys())
+    rec_names = list(data_obj["responsive_units"].keys())
+    behaviors = list(data_obj["responsive_units"][rec_names[0]].keys())
 
     unit_ids = data_obj["unit_ids"]
     responsive_ids = data_obj["responsive_units"]
     
     for behavior in behaviors:
         y_axis, subject = auxfun_ploting.load_dict(which="all_rats", z_score=z_score, data_obj=data_obj, behavior=behavior, single=True)
-        for animal in subjects:
+        for rec_name in rec_names:
 
-            if not os.path.exists(os.path.join(save_path, animal)):
-                os.mkdir(os.path.join(save_path, animal))
-                save_here = os.path.join(save_path, animal)
-            else:
-                save_here = os.path.join(save_path, animal)
+            save_here = auxfun_ploting.make_dir_save(save_path, rec_name)
 
-            responsive_cells = set(responsive_ids[animal][behavior])
-            cells_to_use = set(unit_ids[animal]).intersection(responsive_cells)
+            responsive_cells = set(responsive_ids[rec_name][behavior])
+            cells_to_use = set(unit_ids[rec_name]).intersection(responsive_cells)
 
-            for idx, unit_id in enumerate(unit_ids[animal]):
+            for idx, unit_id in enumerate(unit_ids[rec_name]):
                 if responsive_only  and unit_id not in cells_to_use:
                     continue
                 #Prepare data for proper axes
                 col_axis = np.around(np.arange(-abs(pre_event), post_event, bin_size), 2)
-                df0 = pd.DataFrame(subject[animal][idx]).set_axis(col_axis, axis=1)
+                df0 = pd.DataFrame(subject[rec_name][idx]).set_axis(col_axis, axis=1)
                 df0 = df0.melt(var_name='Seconds', value_name=y_axis, ignore_index=False)
 
                 #Build figure
                 fig, axes = plt.subplots(nrows=2, ncols=1, figsize=(8, 8), sharex=True)
                 axes = axes.flatten()
 
-                axes[0].eventplot(data_obj["centered_spike_timestamps"][behavior][animal][idx])            
+                axes[0].eventplot(data_obj["centered_spike_timestamps"][behavior][rec_name][idx])            
                 sns.lineplot(df0, ax=axes[1], x="Seconds", y=y_axis, errorbar="se")
                 
-
                 #Plottting params
                 axes[0].set_ylabel("Trial #")
                 axes[0].set_title(behavior)
@@ -148,11 +128,7 @@ def plot_psths(data_obj: dict, save_path: str, responsive_only: bool = False, z_
                 axes[1].set_ylabel(y_axis)
                 axes[1].set_ylim([ylimit[0], ylimit[1]])
 
-                if not os.path.exists(os.path.join(save_here, behavior)):
-                    os.mkdir(os.path.join(save_here, behavior))
-                    save = os.path.join(save_here, behavior)
-                else:
-                    save = os.path.join(save_here, behavior)
+                save = auxfun_ploting.make_dir_save(save_here, behavior)
                 
                 fig.savefig(os.path.join(save, f"{behavior}_psth_{str(unit_id)}.png"), dpi=100, bbox_inches="tight")
                 plt.close(fig)
@@ -164,10 +140,9 @@ def plot_psths_paired(
     save_path: str,
     responsive_only: bool = False,
     z_score: bool = True,
-    ylimit: list[float, float] = [-1, 2.5]
+    ylimit: list[float, float] = [-1, 2.5],
     ):
-    """
-    Function used for plotting psths using either z-score or raw firing rate
+    """Function used for plotting psths using either z-score or raw firing rate
 
     Args:
         data_obj: output of structurize_data function. Object containing ephys data structure
@@ -175,7 +150,7 @@ def plot_psths_paired(
         save_path: path to which the plots will be saved. Additional subfolders will be created on per-animal basis
         responsive_only: Toggles whether to plot for all recorded cells or only the ones deemed significantly responsive. Defaults to False
         z_score: if to use z-score or raw firing rate. Defaults to True.
-        ylimit: y_axis limit, first value is lower, second is upper bound. Defaults to [2.5, 2.5].
+        ylimit: y_axis limit, first value is lower, second is upper bound. Defaults to [-1, 2.5].
     Returns:
         Saves plots to set location, creating subfolders on per-animal basis. Each plot is named using event name and neuron ID
     """    
@@ -183,33 +158,30 @@ def plot_psths_paired(
 
     pre_event = data_obj["bin_params"]["pre_event"]
     post_event = data_obj["bin_params"]["post_event"]
-    bin_size = data_obj["bin_params"]["bin_size"]  
+    bin_size = data_obj["bin_params"]["bin_size"]
+    unit_ids = data_obj["unit_ids"]
+    responsive_ids = data_obj["responsive_units"]
 
     filename = behavioral_pair[0] + "_" + behavioral_pair[1]
 
     y_axis, subjects, partners = auxfun_ploting.load_dict(which="all_rats", z_score=z_score, data_obj=data_obj, behavioral_pair=behavioral_pair, single=False)
 
-    unit_ids = data_obj["unit_ids"]
-    responsive_ids = data_obj["responsive_units"]
+    for rec_name in unit_ids.keys():
+        save_here = auxfun_ploting.make_dir_save(save_path, rec_name)
+        if responsive_only:
+            responsive_cells = list(set(responsive_ids[rec_name][behavioral_pair[0]] + responsive_ids[rec_name][behavioral_pair[1]]))
 
-    for animal in unit_ids.keys():
-
-        if not os.path.exists(os.path.join(save_path, animal)):
-            os.mkdir(os.path.join(save_path, animal))
-            save_here = os.path.join(save_path, animal)
-        else:
-            save_here = os.path.join(save_path, animal)
-
-        responsive_cells = set(responsive_ids[animal][behavioral_pair[0]] + responsive_ids[animal][behavioral_pair[1]])
-        cells_to_use = set(unit_ids[animal]).intersection(responsive_cells)
-
-        for idx, unit_id in enumerate(unit_ids[animal]):
-            if responsive_only  and unit_id not in cells_to_use:
+        for idx, unit_id in enumerate(unit_ids[rec_name]):
+            if responsive_only and unit_id not in responsive_cells:
                 continue
+
+            if subjects[rec_name] == None or partners[rec_name] == None:
+                continue
+            
             #Prepare data for proper axes
             col_axis = np.around(np.arange(-abs(pre_event), post_event, bin_size), 2)
-            df0 = pd.DataFrame(subjects[animal][idx]).set_axis(col_axis, axis=1)
-            df1 = pd.DataFrame(partners[animal][idx]).set_axis(col_axis, axis=1)
+            df0 = pd.DataFrame(subjects[rec_name][idx]).set_axis(col_axis, axis=1)
+            df1 = pd.DataFrame(partners[rec_name][idx]).set_axis(col_axis, axis=1)
             df0 = df0.melt(var_name='Seconds', value_name=y_axis, ignore_index=False)
             df1 = df1.melt(var_name='Seconds', value_name=y_axis, ignore_index=False)
 
@@ -225,12 +197,8 @@ def plot_psths_paired(
             ax.set_ylabel(y_axis)
             ax.set_ylim([ylimit[0], ylimit[1]])
 
-            if not os.path.exists(os.path.join(save_here, filename)):
-                os.mkdir(os.path.join(save_here, filename))
-                save = os.path.join(save_here, filename)
-            else:
-                save = os.path.join(save_here, filename)
-            
+            save = auxfun_ploting.make_dir_save(save_here, filename)
+
             fig.savefig(os.path.join(save, f"{filename}_psth_{str(unit_id)}.png"), dpi=100, bbox_inches="tight")
             plt.close(fig)
 
@@ -241,10 +209,9 @@ def plot_lin_reg_scatter(
     per_animal: bool = False,
     responsive_only: bool = False,
     ax_limit=[-4, 4],
-    z_score: bool = True
+    z_score: bool = True,
     ):
-    """
-    Creates scatter plots with regression results showing linear relationship between neuron
+    """Creates scatter plots with regression results showing linear relationship between neuron
     responses to subjects' and partners' behaviors
 
     Args:
@@ -260,20 +227,41 @@ def plot_lin_reg_scatter(
         Saves a scatter plot to a desired location with results of linear regression containing slope, r-value and p-value of the fit. 
     """    
     filename = behavioral_pair[0] + "_" + behavioral_pair[1]
+    rec_names = list(data_obj["responsive_units"].keys())
 
     subjects, partners = auxfun_ploting.load_dict(which="mean_per_rat", z_score=z_score, data_obj=data_obj, behavioral_pair=behavioral_pair, single=False)[1:3] #y_axis not used
 
-    if per_animal == False:
+    if per_animal:
+        for rec_name in rec_names:
+            subject = subjects[rec_name].dropna().mean(axis=1).rename("subject")
+            partner = partners[rec_name].dropna().mean(axis=1).rename("partner")
+            
+            if len(subject) == 0 or len(partner) == 0:
+                continue
 
+            if responsive_only :
+                responsive_units = np.unique(data_obj["responsive_units"][rec_name][behavioral_pair[0]] + data_obj["responsive_units"][rec_name][behavioral_pair[1]])
+                subject = subject.loc[responsive_units]
+                partner = partner.loc[responsive_units]
+
+            df = pd.concat([subject, partner], axis=1)
+            #Make plots
+            save_here = auxfun_ploting.make_dir_save(save_path, rec_name)
+            auxfun_ploting.make_paired_scatter(df, filename, behavioral_pair, ax_limit, save_here)
+
+    else:
         sub_combined = []
         par_combined = []
 
-        for animal in subjects.columns.levels[0]:           
-            subject = subjects[animal].dropna().mean(axis=1).rename("subject")
-            partner = partners[animal].dropna().mean(axis=1).rename("partner")
+        for rec_name in rec_names:         
+            subject = subjects[rec_name].dropna().mean(axis=1).rename("subject")
+            partner = partners[rec_name].dropna().mean(axis=1).rename("partner")
 
-            if responsive_only :
-                responsive_units = pd.Series(data_obj["responsive_units"][animal][behavioral_pair[0]] + data_obj["responsive_units"][animal][behavioral_pair[1]], dtype="float64").unique()
+            if len(subject) == 0 or len(partner) == 0:
+                continue
+
+            if responsive_only:
+                responsive_units = np.unique(data_obj["responsive_units"][rec_name][behavioral_pair[0]] + data_obj["responsive_units"][rec_name][behavioral_pair[1]])
                 subject = subject.loc[responsive_units]
                 partner = partner.loc[responsive_units]
 
@@ -287,25 +275,7 @@ def plot_lin_reg_scatter(
         #Make plots
         auxfun_ploting.make_paired_scatter(df, filename, behavioral_pair, ax_limit, save_path)
 
-    if per_animal :
-        for animal in subjects.columns.levels[0]:
-            if not os.path.exists(os.path.join(save_path, animal)):
-                save_here = os.mkdir(os.path.join(save_path, animal))
-                save_here = os.path.join(save_path, animal)
-            else:
-                save_here = os.path.join(save_path, animal)                
 
-            subject = subjects[animal].dropna().mean(axis=1).rename("subject")
-            partner = partners[animal].dropna().mean(axis=1).rename("partner")
-
-            if responsive_only :
-                responsive_units = pd.Series(data_obj["responsive_units"][animal][behavioral_pair[0]] + data_obj["responsive_units"][animal][behavioral_pair[1]], dtype="float64").unique()
-                subject = subject.loc[responsive_units]
-                partner = partner.loc[responsive_units]
-
-            df = pd.concat([subject, partner], axis=1)
-            #Make plots
-            auxfun_ploting.make_paired_scatter(df, filename, behavioral_pair, ax_limit, save_here)
 
 def plot_heatmaps(
     data_obj: dict,
@@ -315,10 +285,9 @@ def plot_heatmaps(
     colormap: str = "inferno",
     z_score: bool = True,
     x_tick: int = 50,
-    y_tick: int = 25
+    y_tick: int = 25,
     ):
-    """
-    Plots paired heatmaps for sorted neurons comparison (how the same neuron responed to self and parters' behavior)
+    """Plots paired heatmaps for sorted neurons comparison (how the same neuron responed to self and parters' behavior)
 
     Args:
         data_obj: output of structurize_data function. Object containing ephys data structure
@@ -335,8 +304,8 @@ def plot_heatmaps(
     post_event = data_obj["bin_params"]["post_event"]
     bin_size = data_obj["bin_params"]["bin_size"]
 
-    subjects = list(data_obj["responsive_units"].keys())
-    behaviors = list(data_obj["responsive_units"][subjects[0]].keys())
+    rec_names = list(data_obj["responsive_units"].keys())
+    behaviors = list(data_obj["responsive_units"][rec_names[0]].keys())
 
     onset_col_idx = int(pre_event/bin_size)
 
@@ -347,21 +316,17 @@ def plot_heatmaps(
                 y_axis, subjects = auxfun_ploting.load_dict(which="all_rats", z_score=z_score, data_obj=data_obj, behavior=behavior, single=True)
 
                 responsive_subject = []
-
-                for animal in subjects:
+                
+                for rec_name in rec_names:
+                    if subjects[rec_name] == None:
+                        continue
+                    responsive_units = data_obj["responsive_units"][rec_name][behavior]
+                    temp_subject = [i.mean(axis=0) for i in subjects[rec_name]]
                     
-                    responsive_units = pd.Series(data_obj["responsive_units"][animal][behavior], dtype="float64").unique()
-                    temp_subject = []
-                    for i in subjects[animal]:
-                        meaned_subs = i.mean(axis=0)
-                        temp_subject.append(meaned_subs)
-                    
-                    df_subs = pd.DataFrame(temp_subject, index=data_obj["unit_ids"][animal]).loc[responsive_units]
-
+                    df_subs = pd.DataFrame(temp_subject, index=data_obj["unit_ids"][rec_name]).loc[responsive_units]
                     responsive_subject.append(df_subs)
 
                 subjects = pd.concat(responsive_subject)
-
                 subject = subjects.reset_index(drop=True).set_axis(col_axis, axis=1).copy()
             else:
                 y_axis, subject = auxfun_ploting.load_dict(which="mean_all_rats", z_score=z_score, data_obj=data_obj, behavior=behavior, single=True)
@@ -372,22 +337,19 @@ def plot_heatmaps(
             y_axis, subjects = auxfun_ploting.load_dict(which="all_rats", z_score=z_score, data_obj=data_obj, behavior=behavior, single=True)
             col_axis = np.around(np.arange(-abs(pre_event), post_event, bin_size), 2)
 
-            for animal in subjects:
+            for rec_name in rec_names:
                 for behavior in behaviors:
-                    if not os.path.exists(os.path.join(save_path, animal)):
-                        save_here = os.mkdir(os.path.join(save_path, animal))
-                        save_here = os.path.join(save_path, animal)
-                    else:
-                        save_here = os.path.join(save_path, animal)
+                    
+                    save_here = auxfun_ploting.make_dir_save(save_path, rec_name)
                 
                     if responsive_only :
-                        responsive_units = pd.Series(data_obj["responsive_units"][animal][behavior], dtype="float64").unique()            
-                        subject = (pd.DataFrame(np.array(subjects[animal]).mean(axis=1), index=data_obj["unit_ids"][animal], columns=col_axis)
+                        responsive_units = pd.Series(data_obj["responsive_units"][rec_name][behavior], dtype="float64").unique()            
+                        subject = (pd.DataFrame(np.array(subjects[rec_name]).mean(axis=1), index=data_obj["unit_ids"][rec_name], columns=col_axis)
                                 .loc[responsive_units])
 
                         auxfun_ploting.make_heatmap(subject, onset_col_idx, colormap, y_axis, behavior, save_here, x_tick, y_tick)
                     else:           
-                        subject = pd.DataFrame(np.array(subjects[animal]).mean(axis=1), columns=col_axis)
+                        subject = pd.DataFrame(np.array(subjects[rec_name]).mean(axis=1), columns=col_axis)
 
                         auxfun_ploting.make_paired_heatmap(subject, onset_col_idx, colormap, y_axis, behavior, save_here, x_tick, y_tick)
 
@@ -400,10 +362,9 @@ def plot_heatmaps_paired(
     colormap: str = "inferno",
     z_score: bool = True,
     x_tick: int = 50,
-    y_tick:int = 25
+    y_tick:int = 25,
     ):
-    """
-    Plots paired heatmaps for sorted neurons comparison (how the same neuron responed to self and parters' behavior)
+    """Plots paired heatmaps for sorted neurons comparison (how the same neuron responed to self and parters' behavior)
 
     Args:
         data_obj: output of structurize_data function. Object containing ephys data structure
@@ -417,6 +378,7 @@ def plot_heatmaps_paired(
     Returns:
         Saves figures to desired location. If per-animal makes/uses folders with animal name
     """
+    # TODO: Fix handling of empty data when repsonsive_only=False
     pre_event = data_obj["bin_params"]["pre_event"]
     post_event = data_obj["bin_params"]["post_event"]
     bin_size = data_obj["bin_params"]["bin_size"]
@@ -424,7 +386,29 @@ def plot_heatmaps_paired(
     onset_col_idx = int(pre_event/bin_size)
     filename = behavioral_pair[0] + "_" + behavioral_pair[1]
 
-    if per_animal == False:
+    if per_animal:
+        y_axis, subjects, partners = auxfun_ploting.load_dict(which="all_rats", z_score=z_score, data_obj=data_obj, behavioral_pair=behavioral_pair, single=False)
+        col_axis = np.around(np.arange(-abs(pre_event), post_event, bin_size), 2)
+
+        for rec_name in subjects.keys():
+            if subjects[rec_name] == None or partners[rec_name] == None:
+                    continue
+            save_here = auxfun_ploting.make_dir_save(save_path, rec_name)
+        
+            if responsive_only:
+                responsive_units = pd.Series(data_obj["responsive_units"][rec_name][behavioral_pair[0]] + data_obj["responsive_units"][rec_name][behavioral_pair[1]], dtype="float64").unique()            
+                subject = (pd.DataFrame(np.array(subjects[rec_name]).mean(axis=1), index=data_obj["unit_ids"][rec_name], columns=col_axis)
+                           .loc[responsive_units])
+                partner = (pd.DataFrame(np.array(partners[rec_name]).mean(axis=1), index=data_obj["unit_ids"][rec_name], columns=col_axis)
+                           .loc[responsive_units])
+
+                auxfun_ploting.make_paired_heatmap(subject, partner, behavioral_pair, onset_col_idx, colormap, y_axis, filename, save_here, x_tick, y_tick)
+            else:           
+                subject = pd.DataFrame(np.array(subjects[rec_name]).mean(axis=1), columns=col_axis)
+                partner = pd.DataFrame(np.array(partners[rec_name]).mean(axis=1), columns=col_axis)
+
+                auxfun_ploting.make_paired_heatmap(subject, partner, behavioral_pair, onset_col_idx, colormap, y_axis, filename, save_here, x_tick, y_tick)
+    else:
         col_axis = np.around(np.arange(-abs(pre_event), post_event, bin_size), 2)
         if responsive_only :
             y_axis, subjects, partners = auxfun_ploting.load_dict(which="all_rats", z_score=z_score, data_obj=data_obj, behavioral_pair=behavioral_pair, single=False)
@@ -432,23 +416,17 @@ def plot_heatmaps_paired(
             responsive_subjects = []
             responsive_partners = []
 
-            for animal in subjects:
-                
-                if (np.concatenate(subjects[animal]) == None).all() or (np.concatenate(partners[animal]) == None).all():
+            for rec_name in subjects:
+                if subjects[rec_name] == None or partners[rec_name] == None:
                     continue
                 
-                responsive_units = pd.Series(data_obj["responsive_units"][animal][behavioral_pair[0]] + data_obj["responsive_units"][animal][behavioral_pair[1]], dtype="float64").unique()
-                temp_subject = []
-                temp_partner = []
-                for i, j  in zip(subjects[animal], partners[animal]):
-                    meaned_subs = i.mean(axis=0)
-                    meaned_partns = j.mean(axis=0)
-
-                    temp_subject.append(meaned_subs)
-                    temp_partner.append(meaned_partns)
+                responsive_units = pd.Series(data_obj["responsive_units"][rec_name][behavioral_pair[0]] + data_obj["responsive_units"][rec_name][behavioral_pair[1]], dtype="float64").unique()
                 
-                df_subs = pd.DataFrame(temp_subject, index=data_obj["unit_ids"][animal]).loc[responsive_units]
-                df_partns = pd.DataFrame(temp_partner, index=data_obj["unit_ids"][animal]).loc[responsive_units]
+                temp_subject = [i.mean(axis=0) for i in subjects[rec_name]]
+                temp_partner = [i.mean(axis=0) for i in partners[rec_name]]
+                
+                df_subs = pd.DataFrame(temp_subject, index=data_obj["unit_ids"][rec_name]).loc[responsive_units]
+                df_partns = pd.DataFrame(temp_partner, index=data_obj["unit_ids"][rec_name]).loc[responsive_units]
 
                 responsive_subjects.append(df_subs)
                 responsive_partners.append(df_partns)
@@ -465,145 +443,58 @@ def plot_heatmaps_paired(
         subject = subjects.reindex(sorted_idx).reset_index(drop=True).copy()
         partner = partners.reindex(sorted_idx).reset_index(drop=True).copy()
 
-        auxfun_ploting.make_paired_heatmap(subject, partner, behavioral_pair, onset_col_idx, colormap, y_axis, filename, save_path, x_tick, y_tick)      
+        auxfun_ploting.make_paired_heatmap(subject, partner, behavioral_pair, onset_col_idx, colormap, y_axis, filename, save_path, x_tick, y_tick)
 
-    if per_animal :
-        y_axis, subjects, partners = auxfun_ploting.load_dict(which="all_rats", z_score=z_score, data_obj=data_obj, behavioral_pair=behavioral_pair, single=False)
-        col_axis = np.around(np.arange(-abs(pre_event), post_event, bin_size), 2)
-
-        for animal in subjects.keys():
-            if not os.path.exists(os.path.join(save_path, animal)):
-                save_here = os.mkdir(os.path.join(save_path, animal))
-                save_here = os.path.join(save_path, animal)
-            else:
-                save_here = os.path.join(save_path, animal)
-        
-            if responsive_only :
-                responsive_units = pd.Series(data_obj["responsive_units"][animal][behavioral_pair[0]] + data_obj["responsive_units"][animal][behavioral_pair[1]], dtype="float64").unique()            
-                subject = (pd.DataFrame(np.array(subjects[animal]).mean(axis=1), index=data_obj["unit_ids"][animal], columns=col_axis)
-                           .loc[responsive_units])
-                partner = (pd.DataFrame(np.array(partners[animal]).mean(axis=1), index=data_obj["unit_ids"][animal], columns=col_axis)
-                           .loc[responsive_units])
-
-                auxfun_ploting.make_paired_heatmap(subject, partner, behavioral_pair, onset_col_idx, colormap, y_axis, filename, save_here, x_tick, y_tick)
-            else:           
-                subject = pd.DataFrame(np.array(subjects[animal]).mean(axis=1), columns=col_axis)
-                partner = pd.DataFrame(np.array(partners[animal]).mean(axis=1), columns=col_axis)
-
-                auxfun_ploting.make_paired_heatmap(subject, partner, behavioral_pair, onset_col_idx, colormap, y_axis, filename, save_here, x_tick, y_tick)
-
-def neurons_per_structure(data_folder: str | list, data_obj: dict, save_path: str, plot: bool = True):
-    """
-    Summary of a number of neurons recorded from each structure
-
-    Args:
-        data_folder: path to a folder containing all ephys data folders
-        data_obj: output of structurize_data function. Object containing ephys data structure
-        save_path: path to which the plots and csv files will be saved
-        plot: default True, plots simple bar plot summarizing neurons per structure
-    Returns:
-        Saves histograms of a number of neurons per structure and csv files with the data 
-    """
-    try:
-        if isinstance(data_folder, list):
-            pass
-        elif isinstance(data_folder, str):
-            data_folder = glob(data_folder + "\\*")
-    except:
-        print(f"Passed data folder should be either string or a list, {type(data_folder)} was passed")
-
-    per_structure = []
-    for subject, folder in zip(list(data_obj["responsive_units"].keys()), data_folder):
-        subject_responsive = []
-        for behavior in list(data_obj["responsive_units"][subject].keys()):
-            responsive_units = data_obj["responsive_units"][subject][behavior]
-            subject_responsive.append(responsive_units)
-        subject_responsive = sum(subject_responsive, [])
-        subject_responsive = pd.Series(subject_responsive).unique()
-        path = os.path.join(folder, "cluster_info_good.csv")
-        df = pd.read_csv(path, index_col="cluster_id")
-        df = df.loc[subject_responsive, "Structure"].value_counts()
-        
-        per_structure.append(df)
-
-    df = pd.concat(per_structure)
-    df = df.groupby(level=0).sum()
-
-    df.to_csv(os.path.join(save_path, "neurons_per_structure.csv"))
-
-    if plot :
-        sns.set_style("darkgrid")
-        fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(8, 8))
-        sns.barplot(x=df.index, y=df.values, palette="colorblind", legend=False)
-        bars = ax.bar(df.index, df.values)
-
-        plt.tight_layout(pad=2)
-        
-        ax.set_title("Per structure summary")
-        ax.set_xlabel("Structure")
-        ax.set_ylabel("# of neurons")
-        ax.bar_label(bars)    
-        
-        fig.savefig(os.path.join(save_path, "summary_per_structure.png"), dpi=300)
-        fig.clf()
-
-
-def neurons_per_event(data_folder: str | list, data_obj: dict, save_path: str, plot: bool = True):
-    """
-    Summary of a number of neurons per animal, event in a csv, creates csv for each structure
-    NOTE: Neurons are repeated if a neuron is responsive to more than one behavior.
+def plot_nrns_per_structure(df: pd.DataFrame, save_path: str):
+    """Plot number of responsive neurons per structure. Optional.
+    """    
+    sns.set_style("darkgrid")
+    fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(8, 8))
     
-    Args:
-        data_folder: path to a folder containing all ephys data folders
-        data_obj: output of structurize_data function. Object containing ephys data structure
-        save_path: path to which the plots and csv files will be saved
-        plot: default True, if True creates simple bar plots per strucutre, x axis are events, y axis are neurons
-    Returns:
-        Saves histograms and data per event to desired location
-    """
-    try:
-        if isinstance(data_folder, list):
-            pass
-        elif isinstance(data_folder, str):
-            data_folder = glob(data_folder + "\\*")
-    except:
-        print(f"Passed data folder should be either string or a list, {type(data_folder)} was passed")
+    sns.barplot(
+        x=df.index,
+        y=df.values,
+        palette="colorblind",
+        legend=False,
+        hue=df.index
+        )
+    
+    bars = ax.bar(df.index, df.values)
 
-    behaviors = list(data_obj["all_fr_events_per_rat"].keys())
-    subjects = list(data_obj["responsive_units"].keys())
-    per_structure = []
+    plt.tight_layout(pad=2)
+    
+    ax.set_title("Per structure summary")
+    ax.set_xlabel("Structure")
+    ax.set_ylabel("# of neurons")
+    ax.bar_label(bars)    
+    
+    fig.savefig(os.path.join(save_path, "summary_per_structure.png"), dpi=300)
+    fig.clf()
 
-    for subject, folder in zip(subjects, data_folder):
-        subject_responsive = []
-        for behavior in behaviors:
-            responsive_units = data_obj["responsive_units"][subject][behavior]
-            subject_responsive.append(responsive_units)
-        subject_responsive = sum(subject_responsive, [])
-        subject_responsive = pd.Series(subject_responsive).unique()
-        path = os.path.join(folder, "cluster_info_good.csv")
-        df = pd.read_csv(path, index_col="cluster_id")
-        structures = df["Structure"].unique()
-        temp = pd.DataFrame(np.nan, index=structures, columns=behaviors)
-        for behavior in behaviors:
-            for structure in structures:
-                temp.loc[structure, behavior] = len(df[behavior].loc[((df["Structure"] == structure) & (df[behavior] == 1))])
-        per_structure.append(temp)
+def plot_nrns_per_event(df: pd.DataFrame, save_path: str):
+    """Plot number of responsive neurons per event. Optional.
+    """    
+    fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(8, 7))
+    
+    sns.heatmap(
+        df,
+        ax=ax,
+        xticklabels=df.columns,
+        yticklabels=df.index,
+        vmin=0,
+        vmax=df.max().max(),
+        annot=True,
+        cbar=True,
+        cbar_kws={"label": "# of neurons"},
+        cmap="viridis"
+        )
 
-    df = pd.concat(per_structure)
-    df = df.groupby(level=0).sum()
+    plt.tight_layout(pad=3)
 
-    df.to_csv(os.path.join(save_path, "neurons_per_behavior&structure.csv"))
+    ax.set_title("Per structure summary") 
 
-    if plot :
-        fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(8, 7))
-        sns.heatmap(df, ax=ax, xticklabels=df.columns, yticklabels=df.index, vmin=0, vmax=df.max().max(), annot=True, cbar=True, cbar_kws={"label": "# of neurons"}, cmap="viridis")
-
-        plt.tight_layout(pad=3)
-        
-        ax.set_title("Per structure summary") 
-        
-        fig.savefig(os.path.join(save_path, "summary_per_structure&behavior.png"), dpi=300)
-        fig.clf()
+    fig.savefig(os.path.join(save_path, "summary_per_structure&behavior.png"), dpi=300)
+    fig.clf()
 
         
 

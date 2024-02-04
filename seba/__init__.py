@@ -10,6 +10,8 @@ from seba.data import (
     read_bvs,
     extract_raw_events_TS_BehaView,
     read_extract_boris,
+    neurons_per_structure,
+    neurons_per_event
 )
 
 from seba.herbs_histology import (
@@ -24,8 +26,6 @@ from seba.plotting import (
     plot_heatmaps_paired,
     plot_psths,
     plot_psths_paired,
-    neurons_per_structure,
-    neurons_per_event,
 )
 
 from seba.ephys import (

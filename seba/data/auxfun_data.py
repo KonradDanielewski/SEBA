@@ -4,7 +4,6 @@
 import pickle
 import os
 from glob import glob
-from typing import List
 
 import numpy as np
 import pandas as pd
@@ -125,7 +124,7 @@ def responsive_neurons2events(data_folder: str | list, data_obj: dict):
             df.loc[responsive_units[rat][col_name], col_name] = 1
         df.to_csv(os.path.join(folder, "cluster_info_good.csv"))
 
-def responsive_units_wilcoxon(data_obj: dict, conditions: List, rats: str, pre_event: float, post_event: float, bin_size: float, p_bound: float) -> dict:
+def responsive_units_wilcoxon(data_obj: dict, conditions: list[str], rats: str, pre_event: float, post_event: float, bin_size: float, p_bound: float) -> dict:
     
     responsive_units = {key: None for key in rats}
 

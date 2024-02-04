@@ -16,6 +16,7 @@ from seba.ephys import (
     ephys_io,
 )
 from seba.data import auxfun_data
+from seba.plotting import plotting_funcs
 
 def apply_conditions(data_folder: str or list, input_event: str, conditions: list, pad_size=None, exclusive=True):
     """
@@ -137,6 +138,7 @@ def structurize_data(
             condition = os.path.join(spks_dir, "events", f"{event}.txt")
             
             if len(np.loadtxt(condition)) == 0:
+                #Fill data with None
                 data_obj["spike_timestamps"][rec] = spikes_ts
                 data_obj["unit_ids"][rec] = unit_ids
                 data_obj["all_fr_events_per_rat"][event][rec] = None
@@ -149,6 +151,7 @@ def structurize_data(
                 mean_zscs.append(mean_zsc)            
                 mean_fr = pd.DataFrame(np.nan, index=unit_ids, columns=index)
                 mean_frs.append(mean_fr)
+                
             else:
                 # Take only spikes timestamps
                 spikes_ts, unit_ids = ephys_io.read_spikes(spks_dir)
@@ -197,18 +200,19 @@ def structurize_data(
         data_obj["mean_zscored_events_per_rat"][event] = per_rat_zscore
 
     #TODO: make a safe saving function that checks dir and saves files to avoid this code being reduntantly written across codebase
-    if save_output:
-        if not os.path.exists(save_path):
-            os.mkdir(save_path)
+
+    try: 
+        if calculate_responsive:
+            data_obj["responsive_units"] = get_responsive_units(data_folder, data_obj, p_bound)
+            return data_obj
+        else:
+            return data_obj
+    finally:
+        if save_output:
+            if not os.path.exists(save_path):
+                os.mkdir(save_path)
         with open(f"{save_path}\\ephys_data.pickle", "wb") as handle:
             pickle.dump(data_obj, handle, protocol=pickle.HIGHEST_PROTOCOL)
-
-    if calculate_responsive:
-        responsive_units = get_responsive_units(data_folder, data_obj, p_bound)
-        data_obj_responsive = auxfun_data.update_data_structure(data_obj, responsive_units, save_output, save_path)
-        return data_obj_responsive
-    else:
-        return data_obj
     
 def prepare_data_structure(event_names: list[str], rec_names: list[str], pre_event: float, post_event: float, bin_size: float):
     """Auxfun preparing data structure
@@ -309,3 +313,94 @@ def get_responsive_units(data_folder: str or list, data_obj: dict, p_bound=0.05,
     responsive_units = auxfun_data.responsive_units_wilcoxon(data_obj, conditions, rats, pre_event, post_event, bin_size, p_bound)
 
     return responsive_units
+
+def neurons_per_structure(data_folder: str | list, data_obj: dict, save_path: str, plot: bool = True):
+    """
+    Summary of a number of neurons recorded from each structure
+
+    Args:
+        data_folder: path to a folder containing all ephys data folders
+        data_obj: output of structurize_data function. Object containing ephys data structure
+        save_path: path to which the plots and csv files will be saved
+        plot: default True, plots simple bar plot summarizing neurons per structure
+    Returns:
+        Saves histograms of a number of neurons per structure and csv files with the data 
+    """
+    try:
+        if isinstance(data_folder, list):
+            pass
+        elif isinstance(data_folder, str):
+            data_folder = glob(data_folder + "\\*")
+    except:
+        print(f"Passed data folder should be either string or a list, {type(data_folder)} was passed")
+
+    per_structure = []
+    for subject, folder in zip(list(data_obj["responsive_units"].keys()), data_folder):
+        subject_responsive = []
+        for behavior in list(data_obj["responsive_units"][subject].keys()):
+            responsive_units = data_obj["responsive_units"][subject][behavior]
+            subject_responsive.append(responsive_units)
+        subject_responsive = sum(subject_responsive, [])
+        subject_responsive = pd.Series(subject_responsive).unique()
+        path = os.path.join(folder, "cluster_info_good.csv")
+        df = pd.read_csv(path, index_col="cluster_id")
+        df = df.loc[subject_responsive, "Structure"].value_counts()
+        
+        per_structure.append(df)
+
+    df = pd.concat(per_structure)
+    df = df.groupby(level=0).sum()
+
+    df.to_csv(os.path.join(save_path, "neurons_per_structure.csv"))
+    
+    if plot:
+        plotting_funcs.plot_nrns_per_structure(df, save_path)
+
+def neurons_per_event(data_folder: str | list, data_obj: dict, save_path: str, plot: bool = True):
+    """
+    Summary of a number of neurons per animal, event in a csv, creates csv for each structure
+    NOTE: Neurons are repeated if a neuron is responsive to more than one behavior.
+    
+    Args:
+        data_folder: path to a folder containing all ephys data folders
+        data_obj: output of structurize_data function. Object containing ephys data structure
+        save_path: path to which the plots and csv files will be saved
+        plot: default True, if True creates simple bar plots per strucutre, x axis are events, y axis are neurons
+    Returns:
+        Saves histograms and data per event to desired location
+    """
+    try:
+        if isinstance(data_folder, list):
+            pass
+        elif isinstance(data_folder, str):
+            data_folder = glob(data_folder + "\\*")
+    except:
+        print(f"Passed data folder should be either string or a list, {type(data_folder)} was passed")
+
+    behaviors = list(data_obj["all_fr_events_per_rat"].keys())
+    subjects = list(data_obj["responsive_units"].keys())
+    per_structure = []
+
+    for subject, folder in zip(subjects, data_folder):
+        subject_responsive = []
+        for behavior in behaviors:
+            responsive_units = data_obj["responsive_units"][subject][behavior]
+            subject_responsive.append(responsive_units)
+        subject_responsive = sum(subject_responsive, [])
+        subject_responsive = pd.Series(subject_responsive).unique()
+        path = os.path.join(folder, "cluster_info_good.csv")
+        df = pd.read_csv(path, index_col="cluster_id")
+        structures = df["Structure"].unique()
+        temp = pd.DataFrame(np.nan, index=structures, columns=behaviors)
+        for behavior in behaviors:
+            for structure in structures:
+                temp.loc[structure, behavior] = len(df[behavior].loc[((df["Structure"] == structure) & (df[behavior] == 1))])
+        per_structure.append(temp)
+
+    df = pd.concat(per_structure)
+    df = df.groupby(level=0).sum()
+
+    df.to_csv(os.path.join(save_path, "neurons_per_behavior&structure.csv"))
+
+    if plot:
+        plotting_funcs.plot_nrns_per_event(df, save_path)

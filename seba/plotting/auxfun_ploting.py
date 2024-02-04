@@ -78,13 +78,10 @@ def load_dict(which, z_score, data_obj, behavioral_pair=None, behavior=None, sin
         return y_axis, subjects, partners
     
 def make_paired_scatter(df, filename, behavioral_pair, ax_limit, save_path):
-    """
-    Auxiliary for making scatter plots
+    """Auxiliary for making scatter plots
     """
     result = np.around(linregress([df["subject"], df["partner"]]), 2)
-    result = f"""slope = {result[0]}
-r_val = {result[2]}
-p_val = {result[3]}"""
+    result = f"slope = {result[0]} \n r_val = {result[2]} \n p_val = {result[3]}"
 
     #Build figure
     sns.set_style("darkgrid")
@@ -108,8 +105,7 @@ p_val = {result[3]}"""
     plt.close(fig)
 
 def make_heatmap(subject, onset_col_idx, colormap, y_axis, filename, save_path, xticklabel=50, yticklabel=25):
-    """
-    Auxiliary for making sinlge heatmap
+    """Auxiliary for making sinlge heatmap
     """   
     sorted_idx = subject.iloc[:,onset_col_idx:].mean(axis=1).sort_values().index
     subject = subject.reindex(sorted_idx).reset_index(drop=True).copy()
@@ -127,8 +123,7 @@ def make_heatmap(subject, onset_col_idx, colormap, y_axis, filename, save_path, 
     plt.close(fig) 
 
 def make_paired_heatmap(subject, partner, behavioral_pair, onset_col_idx, colormap, y_axis, filename, save_path, xticklabel=50, yticklabel=25):
-    """
-    Auxiliary for making heatmaps
+    """Auxiliary for making heatmaps
     """   
     sorted_idx = (subject.iloc[:,onset_col_idx:] + partner.iloc[:,onset_col_idx:]).mean(axis=1).sort_values().index
     subject = subject.reindex(sorted_idx).reset_index(drop=True).copy()
@@ -149,8 +144,7 @@ def make_paired_heatmap(subject, partner, behavioral_pair, onset_col_idx, colorm
     plt.close(fig) 
 
 def make_common_matrix(df, save_path, per_animal=None, animal=None):
-    """
-    Auxiliary function for making a matrix plot of common responsive neurons between events
+    """Auxiliary function for making a matrix plot of common responsive neurons between events
 
     Args:
         df (DataFrame): containing amount of neurons per event pair
@@ -160,16 +154,23 @@ def make_common_matrix(df, save_path, per_animal=None, animal=None):
     """    
     mask = np.zeros_like(df, dtype=bool)
     mask[np.triu_indices_from(mask, k=1)] = True
+    vmax = np.nanmax(df.to_numpy())
     fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(8, 6))
-    sns.heatmap(df, ax=ax, vmin=0, vmax=df.max()[0], cmap='inferno', annot=True, mask=mask)
+    sns.heatmap(df, ax=ax, vmin=0, vmax=vmax, cmap='inferno', annot=True, mask=mask)
     
     if per_animal==True:
-        if not os.path.exists(os.path.join(save_path, animal)):
-            os.mkdir(os.path.join(save_path, animal))
-            save_here = os.path.join(save_path, animal)
-        else:
-            save_here = os.path.join(save_path, animal)
+        save_here = make_dir_save(save_path, animal)
         fig.savefig(os.path.join(save_here, f"{animal}_common_neurons.png"), dpi=300, bbox_inches="tight")
     else:
         fig.savefig(os.path.join(save_path, f"all_common_neurons.png"), dpi=300, bbox_inches="tight")
-    plt.close(fig) 
+    plt.close(fig)
+
+def make_dir_save(save_path, name):
+    """Auxfun. Checks if dir of joined path exists, if not makes dir, else outputs joined path
+    """    
+    if not os.path.exists(os.path.join(save_path, name)):
+        os.mkdir(os.path.join(save_path, name))
+        save_here = os.path.join(save_path, name)
+    else:
+        save_here = os.path.join(save_path, name)
+    return save_here
