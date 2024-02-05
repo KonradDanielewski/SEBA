@@ -11,10 +11,7 @@ from seba.data import (
     extract_raw_events_TS_BehaView,
     read_extract_boris,
     neurons_per_structure,
-    neurons_per_event
-)
-
-from seba.herbs_histology import (
+    neurons_per_event,
     fix_wrong_shank_NP2,
     get_brain_regions,
 )
@@ -26,11 +23,4 @@ from seba.plotting import (
     plot_heatmaps_paired,
     plot_psths,
     plot_psths_paired,
-)
-
-from seba.ephys import (
-    calc_rasters,
-    fr_events_binless,
-    zscore_events,
-    read_spikes,
 )

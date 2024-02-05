@@ -1,7 +1,6 @@
 """
 @author: K. Danielewski
 """
-import pickle
 import os
 
 import matplotlib.pyplot as plt
@@ -9,9 +8,17 @@ import numpy as np
 import seaborn as sns
 from scipy.stats import linregress
 
-def load_dict(which, z_score, data_obj, behavioral_pair=None, behavior=None, single=None):
-    """
-    Aux for loading specific parts of the data_obj for plotting (electrophysiology_data.pickle)
+from seba.utils import make_dir_save
+
+def load_dict(
+    which: str,
+    z_score: bool,
+    data_obj: dict,
+    behavioral_pair: list[str] = None,
+    behavior: str = None,
+    single: bool = None
+    ) -> (str, np.array) | (str, np.array, np.array):
+    """Aux for loading specific parts of the data_obj for plotting (electrophysiology_data.pickle)
 
     Args:
         which (str): options include 'mean_all_rats', 'mean_per_rat', and 'all_rats'
@@ -22,15 +29,15 @@ def load_dict(which, z_score, data_obj, behavioral_pair=None, behavior=None, sin
         partners (dict/DataFrame): holding firing rate/z-score data for partners' behavior    
     """
     if which == "mean_all_rats":
-        if single :
-            if z_score :
+        if single:
+            if z_score:
                 y_axis = "z-score"
                 subject = data_obj["mean_zscored_events_all_rats"][behavior]
             else:
                 y_axis = "fr"
                 subject = data_obj["mean_fr_events_all_rats"][behavior]
         else:
-            if z_score :
+            if z_score:
                 y_axis = "z-score"
                 subjects = data_obj["mean_zscored_events_all_rats"][behavioral_pair[0]]
                 partners = data_obj["mean_zscored_events_all_rats"][behavioral_pair[1]]
@@ -39,15 +46,15 @@ def load_dict(which, z_score, data_obj, behavioral_pair=None, behavior=None, sin
                 subjects = data_obj["mean_fr_events_all_rats"][behavioral_pair[0]]
                 partners = data_obj["mean_fr_events_all_rats"][behavioral_pair[1]]
     if which == "mean_per_rat":
-        if single :
-            if z_score :
+        if single:
+            if z_score:
                 y_axis = "z-score"
                 subject = data_obj["mean_zscored_events_per_rat"][behavior]
             else:
                 y_axis = "fr"
                 subject = data_obj["mean_fr_events_per_rat"][behavior]
         else:
-            if z_score :
+            if z_score:
                 y_axis = "z-score"
                 subjects = data_obj["mean_zscored_events_per_rat"][behavioral_pair[0]]
                 partners = data_obj["mean_zscored_events_per_rat"][behavioral_pair[1]]
@@ -56,15 +63,15 @@ def load_dict(which, z_score, data_obj, behavioral_pair=None, behavior=None, sin
                 subjects = data_obj["mean_fr_events_per_rat"][behavioral_pair[0]]
                 partners = data_obj["mean_fr_events_per_rat"][behavioral_pair[1]]
     if which == "all_rats":
-        if single :
-            if z_score :
+        if single:
+            if z_score:
                 y_axis = "z-score"
                 subject = data_obj["all_zscored_events_per_rat"][behavior]
             else:
                 y_axis = "fr"
                 subject = data_obj["all_fr_events_per_rat"][behavior]
         else:
-            if z_score :
+            if z_score:
                 y_axis = "z-score"
                 subjects = data_obj["all_zscored_events_per_rat"][behavioral_pair[0]]
                 partners = data_obj["all_zscored_events_per_rat"][behavioral_pair[1]]
@@ -72,7 +79,7 @@ def load_dict(which, z_score, data_obj, behavioral_pair=None, behavior=None, sin
                 y_axis = "fr"
                 subjects = data_obj["all_fr_events_per_rat"][behavioral_pair[0]]
                 partners = data_obj["all_fr_events_per_rat"][behavioral_pair[1]]
-    if single :
+    if single:
         return y_axis, subject
     elif single == False:
         return y_axis, subjects, partners
@@ -164,13 +171,3 @@ def make_common_matrix(df, save_path, per_animal=None, animal=None):
     else:
         fig.savefig(os.path.join(save_path, f"all_common_neurons.png"), dpi=300, bbox_inches="tight")
     plt.close(fig)
-
-def make_dir_save(save_path, name):
-    """Auxfun. Checks if dir of joined path exists, if not makes dir, else outputs joined path
-    """    
-    if not os.path.exists(os.path.join(save_path, name)):
-        os.mkdir(os.path.join(save_path, name))
-        save_here = os.path.join(save_path, name)
-    else:
-        save_here = os.path.join(save_path, name)
-    return save_here

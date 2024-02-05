@@ -1,13 +1,14 @@
 """
 @author: K. Danielewski
 """
-
 import os
 from glob import glob
 
 import numpy as np
 import pandas as pd
 from scipy.io import loadmat
+
+from seba.utils import auxiliary
 
 
 def fix_wrong_shank_NP2(data_folder:str):
@@ -20,13 +21,7 @@ def fix_wrong_shank_NP2(data_folder:str):
 
     """
 
-    try:
-        if isinstance(data_folder, list):
-            pass
-        elif isinstance(data_folder, str):
-            data_folder = glob(data_folder + "\\*")
-    except:
-        print(f"Passed data folder should be either string or a list, {type(data_folder)} was passed")
+    data_folder = auxiliary.check_data_folder(data_folder)
 
     for folder in data_folder:
         tmp = pd.read_csv(os.path.join(folder, r"cluster_info.tsv"), index_col="ch", sep="/t")
@@ -55,13 +50,7 @@ def get_brain_regions(data_folder:str, histology_folder:str, neuropixels_20=True
     Returns:
         Saves a new cluster_info_good.csv file that contains only the neurons that where deemed to be single units
     """    
-    try:
-        if isinstance(data_folder, list):
-            pass
-        elif isinstance(data_folder, str):
-            data_folder = glob(data_folder + "\\*")
-    except:
-        print(f"Passed data folder should be either string or a list, {type(data_folder)} was passed")
+    data_folder = auxiliary.check_data_folder(data_folder)
 
     histology_folder = glob(histology_folder+"\\*")
     for cluster_info, histology in zip(data_folder, histology_folder):
