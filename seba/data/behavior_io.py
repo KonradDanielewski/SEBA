@@ -76,7 +76,7 @@ def behaview_events(events: pd.DataFrame, dir: str, save_events: str):
     
     df_binary.to_csv(os.path.join(save_events, "events_binary.csv"), index_label="frame_id")
 
-def read_extract_boris(directory: str, boris_output: str):
+def read_boris(directory: str, boris_output: str):
     """Reads and extracts behavior annotations from Boris, writes timestamps of events and a binary DataFrame
 
     Args:

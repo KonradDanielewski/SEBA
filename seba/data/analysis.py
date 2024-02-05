@@ -8,7 +8,7 @@ from glob import glob
 import numpy as np
 import pandas as pd
 from scipy import stats
-from statsmodels import multipletests
+from statsmodels.stats.multitest import multipletests
 
 from seba.data import ephys
 from seba.plotting import plotting_funcs
@@ -26,6 +26,7 @@ def structurize_data(
     bin_size: float = 0.01,
     calculate_responsive: bool = True,
     p_bound: float | None = None,
+    spike_threshold: int | None = None,
     save_output: bool = True,
     save_path: str | None = None,
     event_names: list[str] | None = None
@@ -65,47 +66,45 @@ def structurize_data(
     sampling_out = 1/bin_size
 
     for event in event_names:
-        #Get all mean z-scores to combine into one df
+        # Get all mean z-scores to combine into one df
         mean_zscs = []
         mean_frs = []
 
         for spks_dir, rec in zip(data_folder, rec_names):
             condition = os.path.join(spks_dir, "events", f"{event}.txt")
             try:
-                file_not_there = np.loadtxt(condition)
+                file = np.loadtxt(condition)
             except FileNotFoundError:
-                file_not_there = True
-            # TODO: think about this. Data is already filled with None
-            if file_not_there:
-                #Fill data with None
+                file = []
+
+            if len(file) == 0:
+                # Fill data with None
+                spikes_ts, unit_ids = auxfun_ephys.read_spikes(spks_dir)
                 data_obj["spike_timestamps"][rec] = spikes_ts
                 data_obj["unit_ids"][rec] = unit_ids
-                data_obj["all_fr_events_per_rat"][event][rec] = None
-                data_obj["all_zscored_events_per_rat"][event][rec] = None
-                data_obj["centered_spike_timestamps"][event][rec] = None
                 
-                cols = [[rec], np.around(bin_edges, 2)]
+                cols = [[rec], np.around(np.arange(-abs(pre_event), post_event, bin_size), 2)]
                 index = pd.MultiIndex.from_product(cols, names=["rat", "time"])
                 mean_zsc = pd.DataFrame(np.nan, index=unit_ids, columns=index)
-                mean_zscs.append(mean_zsc)            
-                mean_fr = pd.DataFrame(np.nan, index=unit_ids, columns=index)
-                mean_frs.append(mean_fr)
+                # Can be the same since it's only a placeholder to produce the full df later
+                mean_zscs.append(mean_zsc)
+                mean_frs.append(mean_zsc)
                 
             else:
-                # Take only spikes timestamps
                 spikes_ts, unit_ids = auxfun_ephys.read_spikes(spks_dir)
                 centered_ts = ephys.calc_rasters(spikes_ts, condition, pre_event, post_event)
 
                 # Write spike times and unit IDs
                 data_obj["spike_timestamps"][rec] = spikes_ts
                 data_obj["unit_ids"][rec] = unit_ids
+                data_obj["centered_spike_timestamps"][event][rec] = centered_ts
 
                 # Take only all_fr, all_zsc and mean_fr, mean_zsc and bin_edges
-                all_fr, mean_fr = ephys.fr_events_binless(centered_ts, sigma_sec, sampling_out, pre_event, post_event)[0:2]
-                all_zsc, mean_zsc, sem, bin_edges = ephys.zscore_events(all_fr, bin_size, pre_event, post_event)   
+                all_fr, mean_fr = ephys.fr_events_binless(centered_ts, sigma_sec, sampling_out, pre_event, post_event)[:2]
+                all_zsc, mean_zsc = ephys.zscore_events(all_fr, bin_size, pre_event, post_event)[:2]
 
                 # Prepare index and columns
-                cols = [[rec], np.around(bin_edges[:-1], 2)]
+                cols = [[rec], np.around(np.arange(-abs(pre_event), post_event, bin_size), 2)]
                 index = pd.MultiIndex.from_product(cols, names=["rat", "time"])
                 
                 mean_zsc = pd.DataFrame(mean_zsc, index=unit_ids, columns=index)
@@ -116,17 +115,14 @@ def structurize_data(
                 # Write all firing rates per rat, all zscored per rat and center spike timestamps
                 data_obj["all_fr_events_per_rat"][event][rec] = np.array(all_fr)
                 data_obj["all_zscored_events_per_rat"][event][rec] = all_zsc
-                data_obj["centered_spike_timestamps"][event][rec] = centered_ts
         
-        #per rat dataframes with level 0 containing rat name
+        # per rat dataframes with level 0 containing rat name
         per_rat_fr = pd.concat(mean_frs, axis=1)
         per_rat_zscore = pd.concat(mean_zscs, axis=1)
 
         for i in range(len(mean_zscs)):
             mean_zscs[i] = mean_zscs[i].droplevel(0, axis=1)
-
-        for i in range(len(mean_frs)):
-            mean_frs[i] = mean_frs[i].droplevel(0, axis=1)
+            mean_frs[i] = mean_frs[i].droplevel(0, axis=1) 
         
         # Concat mean z-scores and firing rates into one DataFrame per event
         mean_zscored_rats = pd.concat(mean_zscs, axis=0).reset_index(drop=True)
@@ -140,7 +136,7 @@ def structurize_data(
 
     try: 
         if calculate_responsive:
-            data_obj["responsive_units"] = responsive_units_wilcoxon(data_obj, event_names, rec_names, pre_event, post_event, bin_size, p_bound)
+            data_obj = responsive_units_wilcoxon(data_obj, event_names, rec_names, p_bound, spike_threshold)
             return data_obj
         else:
             return data_obj
@@ -155,11 +151,8 @@ def responsive_units_wilcoxon(
     data_obj: dict,
     events: list[str],
     rec_names: list[str],
-    pre_event: float,
-    post_event: float,
-    bin_size: float,
     p_bound: float,
-    spike_threshold: int,
+    spike_threshold: int | None = None,
     ) -> dict:
     """Performs Wilcoxon rank test to establish whether a neuron is responsive to a specific event.
 
@@ -167,55 +160,51 @@ def responsive_units_wilcoxon(
         data_obj: output of structurize_data. Stored in ephys_data.pickle
         events: names of events
         rec_names: names of recordings
-        pre_event: pre event time in seconds.
-        post_event: post event time in seconds.
-        bin_size: resampling factor used for firing rate calculation in seconds.
         p_bound: p value to be used in filtering rank test output
         spike_threshold: specifies minimum number of spikes that should happen per event instance to be considered in rank test. 
             if more than half of the events have less than that number of spikes this neuron is discarded from the rank test.
 
     Returns:
         Dictionary of responsive units per animal per event.
-    """    
-    
-    responsive_units = {key: {event for event in events} for key in rec_names}
+    """
 
-    fdr_test = pd.Series(dtype="float32")
-    for event in data_obj["all_fr_events_per_rat"]:
-        for rec_name in data_obj["all_fr_events_per_rat"][event]:
-            if data_obj["centered_spike_timestamps"][event][rec_name] == None:
+    fdr_test = pd.DataFrame(columns=["raw", "corrected"])
+    for event_name in events:
+        for rec_name in rec_names:
+            if data_obj["centered_spike_timestamps"][event_name][rec_name] == None:
                     continue
             for idx, unit_id in enumerate(data_obj["unit_ids"][rec_name]):
-                n_events = len(data_obj["centered_spike_timestamps"][event][rec_name][idx])
+                n_events = len(data_obj["centered_spike_timestamps"][event_name][rec_name][idx])
                     
                 if n_events == 0:
-                    continue
+                    continue               
                 
-                col_axis = np.around(np.arange(-abs(pre_event), post_event, bin_size), 2)
-                df = pd.DataFrame(data_obj["all_fr_events_per_rat"][event][rec_name][idx]).set_axis(col_axis, axis=1)
-                event = df.iloc[:, int(pre_event/bin_size):].mean(axis=1)
+                if isinstance(spike_threshold, int):
+                    spikes_per_event = [len(i) for i in data_obj["centered_spike_timestamps"][event_name][rec_name][idx]]
+                    invalid = sum([1 if i < spike_threshold else 0 for i in spikes_per_event])
                 
-                invalid = sum([1 if len(i) < spike_threshold else 0 for i in data_obj["centered_spike_timestamps"][event][rec_name][idx]])
+                    if invalid/n_events > 0.5:
+                        continue
                 
-                if invalid/n_events > 0.5:
-                    continue
-                
-                baseline = df.iloc[:, :int(pre_event/bin_size)].mean(axis=1)
-                #Take p-value only
-                if any(event) and len(event) > 10:
+                baseline = []
+                event = []
+                for instance in data_obj["centered_spike_timestamps"][event_name][rec_name][idx]:
+                    baseline.append(len(instance[instance < 0]))
+                    event.append(len(instance[instance > 0]))
+                if len(event) > 9:
                     wilcoxon = stats.wilcoxon(event, baseline, correction=True, zero_method="zsplit", method="approx")[1]
-                    if wilcoxon < p_bound:
-                        fdr_test.loc[f"{rec_name}#{event}#{unit_id}"] = wilcoxon
+                else:
+                    continue
+                if wilcoxon < p_bound:
+                    fdr_test.loc[f"{rec_name}#{event_name}#{unit_id}", "raw"] = wilcoxon
     
-    corrected_p = multipletests(pvals=fdr_test, alpha=0.95, method="fdr_tsbh")[1]
-    corr_idx = fdr_test.index
-    orig_vs_corr = pd.concat([fdr_test, pd.Series(np.around(corrected_p, 4), index=corr_idx)], keys=["original", "corrected"], axis=1)
-    update = orig_vs_corr.query(f"corrected < {p_bound}").copy()
-    for i in range(len(update)):
-        place = update.iloc[i].name
-        places = place.split("#")
-        responsive_units[places[0]][places[1]].append(int(places[2]))
-    return responsive_units
+    fdr_test["corrected"] = multipletests(pvals=fdr_test["raw"], alpha=0.95, method="fdr_tsbh")[1]
+    significant = fdr_test[fdr_test["corrected"] < p_bound].index
+    for i in significant:
+        recording, eve, id = i.split("#")
+        data_obj["responsive_units"][recording][eve].append(int(id))
+    
+    return data_obj
 
 def neurons_per_structure(data_folder: str | list, data_obj: dict, save_path: str, plot: bool = True):
     """Summary of a number of neurons recorded from each structure
@@ -229,17 +218,14 @@ def neurons_per_structure(data_folder: str | list, data_obj: dict, save_path: st
         Saves histograms of a number of neurons per structure and csv files with the data 
     """
     data_folder = auxiliary.check_data_folder(data_folder)
+    behaviors = list(data_obj["all_fr_events_per_rat"].keys())
 
     per_structure = []
     for subject, folder in zip(list(data_obj["responsive_units"].keys()), data_folder):
-        subject_responsive = []
-        for behavior in list(data_obj["responsive_units"][subject].keys()):
-            responsive_units = data_obj["responsive_units"][subject][behavior]
-            subject_responsive.append(responsive_units)
-        subject_responsive = sum(subject_responsive, [])
+        subject_responsive = sum([data_obj["responsive_units"][subject][behavior] for behavior in behaviors], [])
         subject_responsive = pd.Series(subject_responsive).unique()
-        path = os.path.join(folder, "cluster_info_good.csv")
-        df = pd.read_csv(path, index_col="cluster_id")
+
+        df = pd.read_csv(os.path.join(folder, "cluster_info_good.csv"), index_col="cluster_id")
         df = df.loc[subject_responsive, "Structure"].value_counts()
         
         per_structure.append(df)
@@ -252,44 +238,44 @@ def neurons_per_structure(data_folder: str | list, data_obj: dict, save_path: st
     if plot:
         plotting_funcs.plot_nrns_per_structure(df, save_path)
 
-def neurons_per_event(data_folder: str | list, data_obj: dict, save_path: str, plot: bool = True):
-    """Summary of a number of neurons per animal, event in a csv, creates csv for each structure
-    NOTE: Neurons are repeated if a neuron is responsive to more than one behavior.
+# def neurons_per_event_structure(data_obj: dict, save_path: str, plot: bool = True):
+#     """Summary of a number of neurons per animal, event in a csv, creates csv for each structure
+#     NOTE: Neurons are repeated if a neuron is responsive to more than one behavior.
     
-    Args:
-        data_folder: path to a folder containing all ephys data folders
-        data_obj: output of structurize_data function. Object containing ephys data structure
-        save_path: path to which the plots and csv files will be saved
-        plot: default True, if True creates simple bar plots per strucutre, x axis are events, y axis are neurons
-    Returns:
-        Saves histograms and data per event to desired location
-    """
-    data_folder = auxiliary.check_data_folder(data_folder)
+#     Args:
+#         data_obj: output of structurize_data function. Object containing ephys data structure
+#         save_path: path to which the plots and csv files will be saved
+#         plot: default True, if True creates simple bar plots per strucutre, x axis are events, y axis are neurons
+#     Returns:
+#         Saves histograms and data per event to desired location
+#     """
 
-    behaviors = list(data_obj["all_fr_events_per_rat"].keys())
-    subjects = list(data_obj["responsive_units"].keys())
-    per_structure = []
+#     rec_names = data_obj["unit_ids"].keys()
 
-    for subject, folder in zip(subjects, data_folder):
-        subject_responsive = []
-        for behavior in behaviors:
-            responsive_units = data_obj["responsive_units"][subject][behavior]
-            subject_responsive.append(responsive_units)
-        subject_responsive = sum(subject_responsive, [])
-        subject_responsive = pd.Series(subject_responsive).unique()
-        path = os.path.join(folder, "cluster_info_good.csv")
-        df = pd.read_csv(path, index_col="cluster_id")
-        structures = df["Structure"].unique()
-        temp = pd.DataFrame(np.nan, index=structures, columns=behaviors)
-        for behavior in behaviors:
-            for structure in structures:
-                temp.loc[structure, behavior] = len(df[behavior].loc[((df["Structure"] == structure) & (df[behavior] == 1))])
-        per_structure.append(temp)
+#     for rec_name in rec_names:
+#         data_obj["brain_regions"][rec_name].unique()
 
-    df = pd.concat(per_structure)
-    df = df.groupby(level=0).sum()
 
-    df.to_csv(os.path.join(save_path, "neurons_per_behavior&structure.csv"))
+#     data_folder = auxiliary.check_data_folder(data_folder)
 
-    if plot:
-        plotting_funcs.plot_nrns_per_event(df, save_path)
+#     behaviors = list(data_obj["all_fr_events_per_rat"].keys())
+#     subjects = list(data_obj["responsive_units"].keys())
+
+#     for behavior in behaviors:
+#         for subject, folder in zip(subjects, data_folder):
+#             df = pd.read_csv(os.path.join(folder, "cluster_info_good.csv"), index_col="cluster_id")
+#             nrn_ids = data_obj["responsive_units"][subject][behavior]
+#             df.loc[nrn_ids, behavior] = 1
+
+    
+    
+#     for behavior in behaviors:
+#         per_structure.append(sum([data_obj["responsive_units"][subject][behavior] for subject in subjects], []))
+
+#     df = pd.concat(per_structure)
+#     df = df.groupby(level=0).sum()
+
+#     df.to_csv(os.path.join(save_path, "neurons_per_behavior&structure.csv"))
+
+#     if plot:
+#         plotting_funcs.plot_nrns_per_event(df, save_path)

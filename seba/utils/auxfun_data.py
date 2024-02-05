@@ -10,9 +10,77 @@ import pandas as pd
 
 from seba.utils import auxiliary
 
+def prepare_data_structure(event_names: list[str], rec_names: list[str], pre_event: float, post_event: float, bin_size: float) -> dict:
+    """Auxfun preparing data structure
+
+    Args:
+        event_names: names of all possible events
+        rec_names: names of all recordings.
+        pre_event: pre event time in seconds. Defaults to 1.0.
+        post_event: post event time in seconds. Defaults to 3.0.
+        bin_size: Resampling factor used for firing rate calculation. Defaults to 0.01.
+    Return:
+        Empty dictiorany to be filled with data using structurize_data
+    """
+    if isinstance(rec_names, list):
+        pass
+    else:
+        print("No recordings found!")
+
+    # Prepare internal stuctures
+    all_fr_events_per_rat = {event: {recording: None for recording in rec_names} for event in event_names}
+    all_zscored_events_per_rat = {event: {recording: None for recording in rec_names} for event in event_names}
+    mean_fr_events_all_rats = {event: None for event in event_names}
+    mean_fr_events_per_rat = {event: None for event in event_names}
+    mean_zscored_events_all_rats = {event: None for event in event_names}
+    mean_zscored_events_per_rat = {event: None for event in event_names}
+    centered_spike_timestamps = {event: {recording: None for recording in rec_names} for event in event_names}
+    spike_timestamps = {recording: None for recording in rec_names}
+    unit_ids = {recording: None for recording in rec_names}
+    brain_regions = {recording: None for recording in rec_names}
+    bin_params = {"pre_event": pre_event,
+                  "post_event": post_event,
+                  "bin_size": bin_size}
+    responsive_units = {recording: {event: [] for event in event_names} for recording in rec_names}
+    
+    # List default keys and variables
+    output_keys = [
+        "all_fr_events_per_rat",
+        "all_zscored_events_per_rat",
+        "mean_fr_events_all_rats",
+        "mean_fr_events_per_rat",
+        "mean_zscored_events_all_rats",
+        "mean_zscored_events_per_rat",
+        "centered_spike_timestamps",
+        "spike_timestamps",
+        "unit_ids",
+        "brain_regions",
+        "responsive_units",
+        "bin_params",
+        ]
+    output_values = [
+        all_fr_events_per_rat,
+        all_zscored_events_per_rat,
+        mean_fr_events_all_rats,
+        mean_fr_events_per_rat,
+        mean_zscored_events_all_rats,
+        mean_zscored_events_per_rat,
+        centered_spike_timestamps,
+        spike_timestamps,
+        unit_ids,
+        brain_regions,
+        responsive_units,
+        bin_params,
+        ]
+    
+    # Zip into the output structure
+    data_obj = dict(zip(output_keys, output_values))
+
+    return data_obj
+
 def apply_conditions(data_folder: str or list, input_event: str, conditions: list, exclusive=True):
     """Function used to apply conditions to events to take only independent instances of an event or only instances when events happened together
-    TODO: Rewrite, this is disgusting
+    TODO: Consider cleaning up
 
     Args:
         data_folder (str): path to a folder containing all ephys data folders
@@ -116,9 +184,7 @@ def append_event_to_binary(directory: str, event_filepath: str, event_len: int, 
     events_df[name] = 0
     
     # Write ones where event is taking place
-    ones = list(chain.from_iterable(
-        [range(start, stop) for start, stop in zip(event_starts, event_stops)]
-        ))
+    ones = sum([list(range(start, stop)) for start, stop in zip(event_starts, event_stops)], [])
     events_df.loc[ones, name] = 1
 
 def responsive_neurons2events(data_folder: str | list, data_obj: dict):
@@ -130,16 +196,28 @@ def responsive_neurons2events(data_folder: str | list, data_obj: dict):
     Returns:
         Overwrites existing cluster_info_good.csv with a new one containing bool columns of events with True assigned to responsive neurons
     """
-        
-    data_folder = auxiliary.check_data_folder(data_folder)
-    responsive_units = data_obj["responsive_units"]
 
-    for folder, rat in zip(data_folder, responsive_units):
+    data_folder = auxiliary.check_data_folder(data_folder)
+    rec_names = list(data_obj["responsive_units"].keys())
+    events = list(data_obj["responsive_units"][rec_names[0]].keys())
+
+    for folder, rec_name in zip(data_folder, rec_names):
         df = pd.read_csv(os.path.join(folder, "cluster_info_good.csv"), index_col="cluster_id")
-        col_names = responsive_units[rat].keys()
-        for col_name in col_names:
-            df[col_name] = np.nan
-            if responsive_units[rat][col_name] == None:
+        for event in events:
+            df[event] = np.nan
+            if data_obj["responsive_units"][rec_name][event] == None:
                 continue
-            df.loc[responsive_units[rat][col_name], col_name] = 1
+            df.loc[data_obj["responsive_units"][rec_name][event], event] = 1
         df.to_csv(os.path.join(folder, "cluster_info_good.csv"))
+
+def add_brain_regions(data_folder: str | list, data_obj: dict):
+    """Auxfun adds brain regions to data_obj. Each is assigned to it's unit_id
+    """    
+    data_folder = auxiliary.check_data_folder(data_folder)
+    rec_names = data_obj["unit_ids"].keys()
+
+    for folder, rec_name in zip(data_folder, rec_names):
+        df = pd.read_csv(os.path.join(folder, "cluster_info_good.csv"), index_col="cluster_id")
+
+        data_obj["brain_regions"][rec_name] = pd.Series(df.loc[:, "Structure"])
+

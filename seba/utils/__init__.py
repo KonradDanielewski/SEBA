@@ -1,4 +1,7 @@
 """
 @author: K. Danielewski
 """
-from auxfun_data import responsive_neurons2events
+from seba.utils.auxiliary import *
+from seba.utils.auxfun_data import *
+from seba.utils.auxfun_ephys import *
+from seba.utils.auxfun_plotting import *

@@ -36,32 +36,36 @@ def plot_common_nrns_matrix(
     events = data_obj["responsive_units"][list(rec_names)[0]].keys()
 
     if per_animal:
-        for rec_names in rec_names:
+        for rec_name in rec_names:
             df = pd.DataFrame(np.nan, index=events, columns=events)
             for event1, event2 in combinations_with_replacement(events, 2):
+                if data_obj["responsive_units"][rec_name][event1] == None or data_obj["responsive_units"][rec_name][event2] == None:
+                    continue
                 df.loc[event2, event1] = len(np.intersect1d(
-                    data_obj["responsive_units"][rec_names][event1],
-                    data_obj["responsive_units"][rec_names][event2])
+                    data_obj["responsive_units"][rec_name][event1],
+                    data_obj["responsive_units"][rec_name][event2])
                     )
             
             if percent_all_neurons:
-                nrns = len(data_obj["unit_ids"][rec_names])
+                nrns = len(data_obj["unit_ids"][rec_name])
                 df = df/nrns*100
             
-            auxfun_plotting.make_common_matrix(df, save_path, per_animal=per_animal, animal=rec_names)
+            auxfun_plotting.make_common_matrix(df, save_path, per_animal=per_animal, animal=rec_name)
     else:
         df = pd.DataFrame(0, index=events, columns=events)
                 
-        for rec_names in rec_names:
+        for rec_name in rec_names:
             for event1, event2 in combinations_with_replacement(events, 2):
-                count = len(np.intersect1d(data_obj["responsive_units"][rec_names][event1], 
-                                        data_obj["responsive_units"][rec_names][event2]))
+                if data_obj["responsive_units"][rec_name][event1] == None or data_obj["responsive_units"][rec_name][event2] == None:
+                    continue
+                count = len(np.intersect1d(data_obj["responsive_units"][rec_name][event1], 
+                                        data_obj["responsive_units"][rec_name][event2]))
                 df.loc[event2, event1] += count
 
         if percent_all_neurons:
             nrns = []
-            for rec_names in rec_names:
-                nrns.append(len(data_obj["unit_ids"][rec_names]))
+            for rec_name in rec_names:
+                nrns.append(len(data_obj["unit_ids"][rec_name]))
             df = df/sum(nrns)*100
 
         auxfun_plotting.make_common_matrix(df, save_path, per_animal=per_animal)
@@ -118,14 +122,14 @@ def plot_psths(
                 fig, axes = plt.subplots(nrows=2, ncols=1, figsize=(8, 8), sharex=True)
                 axes = axes.flatten()
 
-                axes[0].eventplot(data_obj["centered_spike_timestamps"][behavior][rec_name][idx])            
+                axes[0].eventplot(data_obj["centered_spike_timestamps"][behavior][rec_name][idx], linelengths=0.7)            
                 sns.lineplot(df0, ax=axes[1], x="Seconds", y=y_axis, errorbar="se")
                 
                 #Plottting params
-                axes[0].set_ylabel("Trial #")
+                axes[0].set_ylabel("Trial #", fontsize=14)
                 axes[0].set_title(behavior)
-                axes[1].set_xlabel('Seconds')
-                axes[1].set_ylabel(y_axis)
+                axes[1].set_xlabel('Seconds', fontsize=14)
+                axes[1].set_ylabel(y_axis, fontsize=14)
                 axes[1].set_ylim([ylimit[0], ylimit[1]])
 
                 save = auxiliary.make_dir_save(save_here, behavior)
@@ -419,8 +423,10 @@ def plot_heatmaps_paired(
             for rec_name in subjects:
                 if subjects[rec_name] == None or partners[rec_name] == None:
                     continue
+                if data_obj["responsive_units"][rec_name][behavioral_pair[0]] == None or data_obj["responsive_units"][rec_name][behavioral_pair[1]] == None:
+                    continue
                 
-                responsive_units = pd.Series(data_obj["responsive_units"][rec_name][behavioral_pair[0]] + data_obj["responsive_units"][rec_name][behavioral_pair[1]], dtype="float64").unique()
+                responsive_units = np.unique(data_obj["responsive_units"][rec_name][behavioral_pair[0]] + data_obj["responsive_units"][rec_name][behavioral_pair[1]])
                 
                 temp_subject = [i.mean(axis=0) for i in subjects[rec_name]]
                 temp_partner = [i.mean(axis=0) for i in partners[rec_name]]

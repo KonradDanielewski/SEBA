@@ -8,7 +8,7 @@ import numpy as np
 import seaborn as sns
 from scipy.stats import linregress
 
-from seba.utils import make_dir_save
+from seba.utils.auxiliary import make_dir_save
 
 def load_dict(
     which: str,
@@ -17,7 +17,7 @@ def load_dict(
     behavioral_pair: list[str] = None,
     behavior: str = None,
     single: bool = None
-    ) -> (str, np.array) | (str, np.array, np.array):
+    ) -> tuple:
     """Aux for loading specific parts of the data_obj for plotting (electrophysiology_data.pickle)
 
     Args:
