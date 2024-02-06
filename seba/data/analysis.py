@@ -48,7 +48,6 @@ def structurize_data(
     Returns:
         data_obj: data structure in form of a dictionary. If save_path specified, then saved as a pickle file.
     """
-
     data_folder = auxiliary.check_data_folder(data_folder)
     
     if isinstance(event_names, list):
@@ -167,7 +166,6 @@ def responsive_units_wilcoxon(
     Returns:
         Dictionary of responsive units per animal per event.
     """
-
     fdr_test = pd.DataFrame(columns=["raw", "corrected"])
     for event_name in events:
         for rec_name in rec_names:
@@ -191,7 +189,7 @@ def responsive_units_wilcoxon(
                 for instance in data_obj["centered_spike_timestamps"][event_name][rec_name][idx]:
                     baseline.append(len(instance[instance < 0]))
                     event.append(len(instance[instance > 0]))
-                if len(event) > 9:
+                if len(event) > 9: # Minimum value that doesn't result in a warning that there aren't enough events
                     wilcoxon = stats.wilcoxon(event, baseline, correction=True, zero_method="zsplit", method="approx")[1]
                 else:
                     continue
@@ -214,6 +212,7 @@ def neurons_per_structure(data_folder: str | list, data_obj: dict, save_path: st
         data_obj: output of structurize_data function. Object containing ephys data structure
         save_path: path to which the plots and csv files will be saved
         plot: default True, plots simple bar plot summarizing neurons per structure
+    
     Returns:
         Saves histograms of a number of neurons per structure and csv files with the data 
     """

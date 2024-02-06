@@ -6,8 +6,7 @@ from scipy.ndimage import gaussian_filter1d
         
 
 def calc_rasters(spks_ts: list, events_ts: str, pre_event: float = 1.0, post_event: float = 3.0) -> list[list[np.array]]:
-    """
-    Centers spikes' timestamps on events' timestamps.
+    """Centers spikes' timestamps on events' timestamps.
 
     Args:
         spks_ts: list of arrays with neuron timestamps (each array is one neuron)
@@ -18,7 +17,6 @@ def calc_rasters(spks_ts: list, events_ts: str, pre_event: float = 1.0, post_eve
     Returns:
         centered_ts: list of lists of centered arrays
     """    
-
     centered_ts = []
 
     events_ts = np.loadtxt(events_ts)
@@ -38,8 +36,7 @@ def calc_rasters(spks_ts: list, events_ts: str, pre_event: float = 1.0, post_eve
     return centered_ts
 
 def fr_events_binless(centered_ts: list, sigma_sec: float, sampling_out: int = 1000, pre_event: float = 1.0, post_event: float = 3.0):
-    """
-    Calculates firing rates in trials by applying a Gaussian kernel (binless).
+    """Calculates firing rates in trials by applying a Gaussian kernel (binless).
 
     Args:
         centered_ts (list): output of calc_raster function containing spike timestamps.
@@ -62,18 +59,14 @@ def fr_events_binless(centered_ts: list, sigma_sec: float, sampling_out: int = 1
     `mean_fr` contains the mean firing rate across trials, and `sem_fr` contains the standard error of the mean
     firing rate across trials. The function returns a 1D array of time values in `t_vec`.
     """    
-
-    # Calculate how big is your data etc.
     nunits = len(centered_ts)
     ntrials = len(centered_ts[0])
     nsamples = int(np.round(sampling_out*pre_event + sampling_out*post_event))
 
     t_vec = np.linspace(-pre_event + 1/sampling_out, post_event, nsamples)
 
-    # Specify sigma
     sigma = sigma_sec * sampling_out
     
-    # Create empty list/arrays for storing results
     all_fr = []
     mean_fr = np.zeros([nunits, nsamples])
     sem_fr = np.zeros([nunits, nsamples])
@@ -97,8 +90,7 @@ def fr_events_binless(centered_ts: list, sigma_sec: float, sampling_out: int = 1
 
 
 def zscore_events(all_fr: list, bin_size: int, pre_event = 1.0, post_event = 3.0):
-    """
-    Calculates z-score in trials - where baseline is separate for each trial.
+    """Calculates z-score in trials - where baseline is separate for each trial.
 
     Args:
         all_fr (list): list of arrays, for each neurons contains firing rate for each sample in n_trials x n_time_bins
@@ -111,15 +103,12 @@ def zscore_events(all_fr: list, bin_size: int, pre_event = 1.0, post_event = 3.0
         mean_zsc (array): n neurons x n time bins for storing mean fr (across trials)
         sem_zsc (array): n neurons x n time bins for storing standard error (across trials)
     """    
-    
-    # Calculate how big is your data and bin edges (in sec)
     nunits = len(all_fr)
     ntrials = all_fr[0].shape[0]
     bin_edges = np.arange(pre_event *(-1), post_event + bin_size, bin_size)
     nbins = bin_edges.size - 1
     nbins_pre = int(pre_event/bin_size)
-    
-    # Create empty list/arrays for storing results
+
     all_zsc = []
     mean_zsc = np.zeros([nunits, nbins])
     sem_zsc = np.zeros([nunits, nbins])
@@ -142,4 +131,4 @@ def zscore_events(all_fr: list, bin_size: int, pre_event = 1.0, post_event = 3.0
         mean_zsc[nrn,:] = np.mean(neuron_zsc, 0)
         sem_zsc[nrn,:] = np.std(neuron_zsc, 0) / np.sqrt(ntrials)
     
-    return all_zsc, mean_zsc, sem_zsc, bin_edges
+    return all_zsc, mean_zsc, sem_zsc

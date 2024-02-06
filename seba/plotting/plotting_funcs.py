@@ -31,7 +31,6 @@ def plot_common_nrns_matrix(
     Returns:
         Saves a matrix of the amount of common responsive neurons across event pairs
     """    
-
     rec_names = data_obj["responsive_units"].keys()
     events = data_obj["responsive_units"][list(rec_names)[0]].keys()
 
@@ -88,7 +87,6 @@ def plot_psths(
     Returns:
         Saves plots to set location, creating subfolders on per-animal basis. Each plot is named using event name and neuron ID
     """    
-
     sns.set_palette("colorblind")
 
     pre_event = data_obj["bin_params"]["pre_event"]

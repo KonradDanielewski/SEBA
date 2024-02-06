@@ -7,8 +7,7 @@ import numpy as np
 import pandas as pd
 
 def read_spikes(spks_dir: str, sampling_rate = 30000.0, read_only = "good"):
-    """
-    Reads spike times as saved by Phy2.
+    """Reads spike times as saved by Phy2.
 
     Args:
         spks_dir (str): directory with spike times and sorting results
@@ -19,7 +18,6 @@ def read_spikes(spks_dir: str, sampling_rate = 30000.0, read_only = "good"):
         spks_ts (list): a list of numpy arrays, where all timestamps in each array are from one neuron
         units_id (list): neuron ids
     """
-    
     spks = np.load(os.path.join(spks_dir, "spike_times.npy"))
     clst = np.load(os.path.join(spks_dir, "spike_clusters.npy"))
     clst_group = pd.read_csv(os.path.join(spks_dir, "cluster_group.tsv"), sep='\t')

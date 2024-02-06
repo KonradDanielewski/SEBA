@@ -88,7 +88,7 @@ def make_paired_scatter(df, filename, behavioral_pair, ax_limit, save_path):
     """Auxiliary for making scatter plots
     """
     result = np.around(linregress([df["subject"], df["partner"]]), 2)
-    result = f"slope = {result[0]} \n r_val = {result[2]} \n p_val = {result[3]}"
+    result = f"slope = {result[0]}\nr_val = {result[2]}\np_val = {result[3]}"
 
     #Build figure
     sns.set_style("darkgrid")

@@ -80,7 +80,7 @@ def prepare_data_structure(event_names: list[str], rec_names: list[str], pre_eve
 
 def apply_conditions(data_folder: str or list, input_event: str, conditions: list, exclusive=True):
     """Function used to apply conditions to events to take only independent instances of an event or only instances when events happened together
-    TODO: Consider cleaning up
+    TODO: Consider cleaning up and if it's necessary
 
     Args:
         data_folder (str): path to a folder containing all ephys data folders
@@ -121,51 +121,26 @@ def apply_conditions(data_folder: str or list, input_event: str, conditions: lis
             name = "_".join(conditions[1:])
             np.savetxt(os.path.join(save_path, input_event + "_" + name + "_together.txt"), output, fmt='%1.6f')
 
-def update_data_structure(data_obj: dict, responsive_units: dict, save_output=True, save_path=None):
-    """
-    Updates data structure stored in ephys_data.pickle
-
-    Args:
-        data_obj (dict): output of structurize_data. Stored in ephys_data.pickle
-        responsive_units (dict): output of get_responsive_units
-        save_output (bool, optional): saves output of the function to a pickle file. Defaults to True.
-        save_path (str, optional): path to which the file should be saved. File will be named ephys_data.pickle.
-    Returns:
-        data_obj (dict): updated input with new key containing significantly responsive neurons. Also overwrites old ephys_data.pickle
-    """
-    if not data_obj.get("responsive_units"):
-        data_obj["responsive_units"] = responsive_units
-    else:
-        pass
-    if data_obj.get("responsive_units") and save_output :
-        with open(f"{save_path}\\ephys_data.pickle", "wb") as handle:
-            pickle.dump(data_obj, handle, protocol=pickle.HIGHEST_PROTOCOL)
-    
-    return data_obj
-
-def event_filled_preparation(df_binary, name, starts_ser, stops_ser, method):
+def event_filled_preparation(df_binary, name, starts, stops):
     """
     Aux function for creating events_filled_conditions
     """    
-    if method == "behaview" or method=="boris":
-        ones = list(chain.from_iterable(
-            [range(start, stop) for start, stop in zip(starts_ser.index, stops_ser.index)]
-            ))
-        df_binary.loc[ones, name] = 1
+    ones = sum([list(range(start, stop)) for start, stop in zip(starts, stops)], [])
+    df_binary.loc[ones, name] = 1
 
-def append_event_to_binary(directory: str, event_filepath: str, event_len: int, framerate):
+def append_event_to_binary(directory: str, event_filepath: str, event_len: int, onsets_only: bool = True):
     """Aux function for appending TTL event
 
     Args:
         directory: directory of the recording to which data is being added
         event_filepath: path to the file which contains timestamps of the event
         event_len: length of the event in second
-        framerate: framerate of the video recording
+        onsets_only: if True saves a txt file with only onsets timestamps, otherwise a separate file with offset timestamps is also saved
     """
     if event_filepath.endswith(".csv"):
-        event = pd.read_csv(event_filepath, header=None)
+        event = pd.read_csv(event_filepath, header=None).values.reshape(-1)
     if event_filepath.endswith(".tsv") or event_filepath.endswith(".txt"):
-        event = pd.read_csv(event_filepath, header=None, sep="\t")
+        event = pd.read_csv(event_filepath, header=None, sep="\t").values.reshape(-1)
     else:
         print(f"File extensions not handled. '.csv', '.tsv' and '.txt' are supported but {event_filepath.split('.')[1]} was passed")
     
@@ -179,8 +154,14 @@ def append_event_to_binary(directory: str, event_filepath: str, event_len: int, 
         raise
 
     name = os.path.basename(event_filepath).split('.')[0]
+
+    np.savetxt(os.path.join(directory, "events", f"{name}_onsets.txt"), event, fmt='%1.6f')
+    if not onsets_only:
+        offsets = cam_TTL(np.searchsorted(cam_TTL, event + event_len))
+        np.savetxt(os.path.join(directory, "events", f"{name}_onsets.txt"), offsets, fmt='%1.6f')
+    
     event_starts = np.searchsorted(cam_TTL, event, side='left')
-    event_stops = event_starts + (event_len*framerate)
+    event_stops = np.searchsorted(cam_TTL, event + event_len)
     events_df[name] = 0
     
     # Write ones where event is taking place
@@ -196,7 +177,6 @@ def responsive_neurons2events(data_folder: str | list, data_obj: dict):
     Returns:
         Overwrites existing cluster_info_good.csv with a new one containing bool columns of events with True assigned to responsive neurons
     """
-
     data_folder = auxiliary.check_data_folder(data_folder)
     rec_names = list(data_obj["responsive_units"].keys())
     events = list(data_obj["responsive_units"][rec_names[0]].keys())

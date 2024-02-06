@@ -23,5 +23,6 @@ from seba.plotting import (
 
 from seba.utils import (
     add_brain_regions,
-    responsive_neurons2events
+    responsive_neurons2events,
+    append_event_to_binary
 )

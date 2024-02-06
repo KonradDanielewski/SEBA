@@ -20,7 +20,6 @@ def fix_wrong_shank_NP2(data_folder:str):
         Saves a new cluster_info.csv file that contains properly assigned shanks (doesn't overwrite old cluster_info.tsv)
 
     """
-
     data_folder = auxiliary.check_data_folder(data_folder)
 
     for folder in data_folder:
