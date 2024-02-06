@@ -18,7 +18,7 @@ from seba.utils import (
 def plot_common_nrns_matrix(
     data_obj: dict,
     save_path: str,
-    per_animal: bool = False,
+    per_recording: bool = False,
     percent_all_neurons: bool = True,
     ):
     """Function creating matrix plot of a perctage of common responsive neurons between pairs of events
@@ -26,7 +26,7 @@ def plot_common_nrns_matrix(
     Args:
         data_obj: output of structurize_data. Stored in ephys_data.pickle
         save_path: path to which the plots will be saved. Additional subfolders will be created on per-animal basis
-        per_animal: Toggles if the regression is done and plotted for all recorded neurons or on per-animal basis. Defaults to False.
+        per_recording: Toggles if the regression is done and plotted for all recorded neurons or on per-animal basis. Defaults to False.
         percent_all_neurons: Toggles whether to show values as percentage of all neurons or percentage of responsive neurons. Defaults to True.
     Returns:
         Saves a matrix of the amount of common responsive neurons across event pairs
@@ -34,7 +34,7 @@ def plot_common_nrns_matrix(
     rec_names = data_obj["responsive_units"].keys()
     events = data_obj["responsive_units"][list(rec_names)[0]].keys()
 
-    if per_animal:
+    if per_recording:
         for rec_name in rec_names:
             df = pd.DataFrame(np.nan, index=events, columns=events)
             for event1, event2 in combinations_with_replacement(events, 2):
@@ -48,8 +48,8 @@ def plot_common_nrns_matrix(
             if percent_all_neurons:
                 nrns = len(data_obj["unit_ids"][rec_name])
                 df = df/nrns*100
-            
-            auxfun_plotting.make_common_matrix(df, save_path, per_animal=per_animal, animal=rec_name)
+
+            auxfun_plotting.make_common_matrix(df, save_path, per_recording=per_recording, animal=rec_name)
     else:
         df = pd.DataFrame(0, index=events, columns=events)
                 
@@ -67,7 +67,7 @@ def plot_common_nrns_matrix(
                 nrns.append(len(data_obj["unit_ids"][rec_name]))
             df = df/sum(nrns)*100
 
-        auxfun_plotting.make_common_matrix(df, save_path, per_animal=per_animal)
+        auxfun_plotting.make_common_matrix(df, save_path, per_recording=per_recording)
 
 def plot_psths(
     data_obj: dict,
@@ -208,7 +208,7 @@ def plot_lin_reg_scatter(
     data_obj: dict,
     behavioral_pair: list,
     save_path: str,
-    per_animal: bool = False,
+    per_recording: bool = False,
     responsive_only: bool = False,
     ax_limit=[-4, 4],
     z_score: bool = True,
@@ -221,7 +221,7 @@ def plot_lin_reg_scatter(
         behavioral_pair: list of two keys to plot together, assumes [subject, partner] order e.g., ["freezing_subject", "freezing_partner"]
         save_path: path to which the plots will be saved. Additional subfolders will be created on per-animal basis
         responsive_only: Toggles whether to plot for all recorded cells or only the ones deemed significantly responsive. Defaults to False
-        per_animal: Toggles if the regression is done and plotted for all recorded neurons
+        per_recording: Toggles if the regression is done and plotted for all recorded neurons
             or on per-animal basis. Defaults to False.
         ax_limit: axes limits, assumes 0 centered, even per axis. First value is x axis, second is y axis. Defaults to [-4, 4].
         z_score: required for compatibility. Always True
@@ -233,7 +233,7 @@ def plot_lin_reg_scatter(
 
     subjects, partners = auxfun_plotting.load_dict(which="mean_per_rat", z_score=z_score, data_obj=data_obj, behavioral_pair=behavioral_pair, single=False)[1:3] #y_axis not used
 
-    if per_animal:
+    if per_recording:
         for rec_name in rec_names:
             subject = subjects[rec_name].dropna().mean(axis=1).rename("subject")
             partner = partners[rec_name].dropna().mean(axis=1).rename("partner")
@@ -282,7 +282,7 @@ def plot_lin_reg_scatter(
 def plot_heatmaps(
     data_obj: dict,
     save_path: str,
-    per_animal: bool = False,
+    per_recording: bool = False,
     responsive_only: bool = False,
     colormap: str = "inferno",
     z_score: bool = True,
@@ -294,7 +294,7 @@ def plot_heatmaps(
     Args:
         data_obj: output of structurize_data function. Object containing ephys data structure
         save_path: path to which the plots will be saved. Additional subfolders will be created on per-animal basis
-        per_animal: Toggles if the regression is done and plotted for all recorded neurons
+        per_recording: Toggles if the regression is done and plotted for all recorded neurons
             or on per-animal basis. Defaults to False.
         responsive_only: Toggles whether to plot for all recorded cells or only the ones deemed significantly responsive. Defaults to False
         colormap: matplotlib colormap used for heatmap plotting. Defaults to "viridis".
@@ -312,7 +312,7 @@ def plot_heatmaps(
     onset_col_idx = int(pre_event/bin_size)
 
     for behavior in behaviors:
-        if per_animal == False:
+        if per_recording == False:
             col_axis = np.around(np.arange(-abs(pre_event), post_event, bin_size), 2)
             if responsive_only :
                 y_axis, subjects = auxfun_plotting.load_dict(which="all_rats", z_score=z_score, data_obj=data_obj, behavior=behavior, single=True)
@@ -335,7 +335,7 @@ def plot_heatmaps(
 
             auxfun_plotting.make_heatmap(subject, onset_col_idx, colormap, y_axis, behavior, save_path, x_tick, y_tick)      
 
-        if per_animal :
+        if per_recording :
             y_axis, subjects = auxfun_plotting.load_dict(which="all_rats", z_score=z_score, data_obj=data_obj, behavior=behavior, single=True)
             col_axis = np.around(np.arange(-abs(pre_event), post_event, bin_size), 2)
 
@@ -359,7 +359,7 @@ def plot_heatmaps_paired(
     data_obj: dict,
     behavioral_pair: list,
     save_path: str,
-    per_animal: bool = False,
+    per_recording: bool = False,
     responsive_only: bool = False,
     colormap: str = "inferno",
     z_score: bool = True,
@@ -372,7 +372,7 @@ def plot_heatmaps_paired(
         data_obj: output of structurize_data function. Object containing ephys data structure
         behavioral_pair: list of two keys to plot together, assumes [subject, partner] order e.g., ["freezing_subject", "freezing_partner"]
         save_path: path to which the plots will be saved. Additional subfolders will be created on per-animal basis
-        per_animal: Toggles if the regression is done and plotted for all recorded neurons
+        per_recording: Toggles if the regression is done and plotted for all recorded neurons
             or on per-animal basis. Defaults to False.
         responsive_only: Toggles whether to plot for all recorded cells or only the ones deemed significantly responsive. Defaults to False
         colormap: matplotlib colormap used for heatmap plotting. Defaults to "viridis".
@@ -388,7 +388,7 @@ def plot_heatmaps_paired(
     onset_col_idx = int(pre_event/bin_size)
     filename = behavioral_pair[0] + "_" + behavioral_pair[1]
 
-    if per_animal:
+    if per_recording:
         y_axis, subjects, partners = auxfun_plotting.load_dict(which="all_rats", z_score=z_score, data_obj=data_obj, behavioral_pair=behavioral_pair, single=False)
         col_axis = np.around(np.arange(-abs(pre_event), post_event, bin_size), 2)
 
@@ -475,27 +475,31 @@ def plot_nrns_per_structure(df: pd.DataFrame, save_path: str):
     fig.savefig(os.path.join(save_path, "summary_per_structure.png"), dpi=300)
     fig.clf()
 
-def plot_nrns_per_event(df: pd.DataFrame, save_path: str):
-    """Plot number of responsive neurons per event. Optional.
-    """    
-    fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(8, 7))
-    
-    sns.heatmap(
-        df,
-        ax=ax,
-        xticklabels=df.columns,
-        yticklabels=df.index,
-        vmin=0,
-        vmax=df.max().max(),
-        annot=True,
-        cbar=True,
-        cbar_kws={"label": "# of neurons"},
-        cmap="viridis"
-        )
+def plot_neurons_per_event_structure(data_folder: str | list, data_obj: dict, save_path: str, per_recording: bool = False):
+    """Creates a heatmap plot of structures vs events where intersection is a number of neurons from a specific structure
+    encoding a specific event. Neurons that respond to many events are repeated.
 
-    plt.tight_layout(pad=3)
+    Args:
+        data_folder: path to a folder containing all ephys data folders
+        data_obj: output of structurize_data. Stored in ephys_data.pickle
+        save_path: path to which the plots will be saved. Additional subfolders will be created on per-animal basis
+        per_recording: Toggles if the regression is done and plotted for all recorded neurons or on per-animal basis.
+    """
+    data_folder = auxiliary.check_data_folder(data_folder)
+    rec_names = data_obj["recording_names"]
+    event_names = data_obj["event_names"]
 
-    ax.set_title("Per structure summary") 
+    if per_recording:
+        for dir, rec_name in (data_folder, rec_names):
+            df = pd.read_csv(os.path.join(dir, "cluster_info_good.csv"), index_col="cluster_id")
+            event_names.append("Structure")
+            df.loc[:, event_names].groupby("Structure").sum()
+            auxfun_plotting.make_per_event_strcuture_plot(df, save_path, event_names, per_recording, rec_name)
 
-    fig.savefig(os.path.join(save_path, "summary_per_structure&behavior.png"), dpi=300)
-    fig.clf()
+    else:
+        df_list = []
+        for dir in data_folder:
+            df_list.append(pd.read_csv(os.path.join(dir, "cluster_info_good.csv"), index_col="cluster_id"))
+        event_names.append("Structure")
+        df = pd.concat(df_list).loc[:, event_names].groupby("Structure").sum()
+        auxfun_plotting.make_per_event_strcuture_plot(df, save_path, event_names, per_recording)

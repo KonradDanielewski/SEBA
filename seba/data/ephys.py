@@ -131,4 +131,4 @@ def zscore_events(all_fr: list, bin_size: int, pre_event = 1.0, post_event = 3.0
         mean_zsc[nrn,:] = np.mean(neuron_zsc, 0)
         sem_zsc[nrn,:] = np.std(neuron_zsc, 0) / np.sqrt(ntrials)
     
-    return all_zsc, mean_zsc, sem_zsc
+    return all_zsc, mean_zsc, sem_zsc, bin_edges

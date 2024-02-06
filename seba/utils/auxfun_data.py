@@ -42,6 +42,8 @@ def prepare_data_structure(event_names: list[str], rec_names: list[str], pre_eve
                   "post_event": post_event,
                   "bin_size": bin_size}
     responsive_units = {recording: {event: [] for event in event_names} for recording in rec_names}
+    events = event_names
+    recording_names = rec_names
     
     # List default keys and variables
     output_keys = [
@@ -57,6 +59,8 @@ def prepare_data_structure(event_names: list[str], rec_names: list[str], pre_eve
         "brain_regions",
         "responsive_units",
         "bin_params",
+        "event_names",
+        "recording_names",
         ]
     output_values = [
         all_fr_events_per_rat,
@@ -71,12 +75,30 @@ def prepare_data_structure(event_names: list[str], rec_names: list[str], pre_eve
         brain_regions,
         responsive_units,
         bin_params,
+        events,
+        recording_names,
         ]
     
     # Zip into the output structure
     data_obj = dict(zip(output_keys, output_values))
 
     return data_obj
+
+def add_to_data_structure(data_obj: dict | str, new_key: str, save_path: str, data_to_add):
+    """Auxfun to add new data to the data structure
+    """
+    if isinstance(data_obj, dict):
+        pass
+    if isinstance(data_obj, str):
+        data_obj = pd.read_pickle(data_obj)
+
+    if data_obj.get(new_key) == None:
+        data_obj[new_key] = data_to_add
+    else:
+        print(f"Key {new_key} already exists in data obj")
+    
+    with open(f"{save_path}\\ephys_data.pickle", "wb") as handle:
+        pickle.dump(data_obj, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 def apply_conditions(data_folder: str or list, input_event: str, conditions: list, exclusive=True):
     """Function used to apply conditions to events to take only independent instances of an event or only instances when events happened together
@@ -107,7 +129,7 @@ def apply_conditions(data_folder: str or list, input_event: str, conditions: lis
 
         query_conditions = " and ".join(query_conditions)
         
-        df = pd.read_csv(os.path.join(folder, "events", "events_binary.csv"), index_col="TS")
+        df = pd.read_csv(os.path.join(folder, "events", "events_binary.csv"), index_col="camera_timestamp")
     
         conditional_event = np.loadtxt(os.path.join(folder, "events", f"{input_event}.txt"))
         condition_met = df.query(query_conditions).index
@@ -145,7 +167,7 @@ def append_event_to_binary(directory: str, event_filepath: str, event_len: int, 
         print(f"File extensions not handled. '.csv', '.tsv' and '.txt' are supported but {event_filepath.split('.')[1]} was passed")
     
     # Load DF to which data is added
-    events_df = pd.read_csv(os.path.join(directory, "events", "events_binary.csv"), index_col="frame_id")
+    events_df = pd.read_csv(os.path.join(directory, "events", "events_binary.csv"))
 
     # Try to load camera frame timestamps from global clock
     try:
@@ -153,7 +175,7 @@ def append_event_to_binary(directory: str, event_filepath: str, event_len: int, 
     except FileNotFoundError:
         raise
 
-    name = os.path.basename(event_filepath).split('.')[0]
+    name = os.path.basename(event_filepath).split('.')[0].lower()
 
     np.savetxt(os.path.join(directory, "events", f"{name}_onsets.txt"), event, fmt='%1.6f')
     if not onsets_only:
@@ -167,6 +189,8 @@ def append_event_to_binary(directory: str, event_filepath: str, event_len: int, 
     # Write ones where event is taking place
     ones = sum([list(range(start, stop)) for start, stop in zip(event_starts, event_stops)], [])
     events_df.loc[ones, name] = 1
+    events_df = events_df.sort_index(axis=1)
+    events_df.to_csv(os.path.join(directory, "events", "events_binary.csv"), index=False)
 
 def responsive_neurons2events(data_folder: str | list, data_obj: dict):
     """Assigns 1 to neuron ids in cluster_info_good.csv that were significantly responsive to event
@@ -178,8 +202,8 @@ def responsive_neurons2events(data_folder: str | list, data_obj: dict):
         Overwrites existing cluster_info_good.csv with a new one containing bool columns of events with True assigned to responsive neurons
     """
     data_folder = auxiliary.check_data_folder(data_folder)
-    rec_names = list(data_obj["responsive_units"].keys())
-    events = list(data_obj["responsive_units"][rec_names[0]].keys())
+    rec_names = list(data_obj["unit_ids"].keys())
+    events = list(data_obj["event_names"])
 
     for folder, rec_name in zip(data_folder, rec_names):
         df = pd.read_csv(os.path.join(folder, "cluster_info_good.csv"), index_col="cluster_id")

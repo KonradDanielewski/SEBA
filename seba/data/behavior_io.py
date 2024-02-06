@@ -72,9 +72,9 @@ def behaview_events(events: pd.DataFrame, dir: str, save_events: str, onsets_onl
         
         auxfun_data.event_filled_preparation(df_binary, name, starts, stops)
 
-    df_binary["TS"] = cam_TTL
+    df_binary["camera_timestamp"] = cam_TTL
     
-    df_binary.to_csv(os.path.join(save_events, "events_binary.csv"), index_label="frame_id")
+    df_binary.to_csv(os.path.join(save_events, "events_binary.csv"), index=False)
 
 def read_boris(directory: str, boris_output: str, onsets_only: bool = True):
     """Reads and extracts behavior annotations from Boris, writes timestamps of events and a binary DataFrame
@@ -116,6 +116,6 @@ def read_boris(directory: str, boris_output: str, onsets_only: bool = True):
         stops = np.searchsorted(cam_TTL, stops)
 
         auxfun_data.event_filled_preparation(df_binary, name, starts, stops)
-    
-    df_binary["TS"] = cam_TTL
-    df_binary.to_csv(os.path.join(save_path, "events_binary.csv"), index_label="frame_id")
+
+    df_binary["camera_timestamp"] = cam_TTL
+    df_binary.to_csv(os.path.join(save_path, "events_binary.csv"), index=False)

@@ -150,24 +150,34 @@ def make_paired_heatmap(subject, partner, behavioral_pair, onset_col_idx, colorm
     fig.savefig(os.path.join(save_path, f"{filename}_heatmaps.png"), dpi=300, bbox_inches="tight")
     plt.close(fig) 
 
-def make_common_matrix(df, save_path, per_animal=None, animal=None):
+def make_common_matrix(df, save_path, per_recording=None, animal=None):
     """Auxiliary function for making a matrix plot of common responsive neurons between events
-
-    Args:
-        df (DataFrame): containing amount of neurons per event pair
-        save_path (str): path to a folder where the plot should be saved
-        per_animal (bool, optional): Toggles if to plot per animal or for all animals. Defaults to None.
-        animal (str, optional): name of the animal. Defaults to None.
-    """    
+    """ # TODO: clean up
     mask = np.zeros_like(df, dtype=bool)
     mask[np.triu_indices_from(mask, k=1)] = True
     vmax = np.nanmax(df.to_numpy())
     fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(8, 6))
     sns.heatmap(df, ax=ax, vmin=0, vmax=vmax, cmap='inferno', annot=True, mask=mask)
     
-    if per_animal==True:
+    if per_recording:
         save_here = make_dir_save(save_path, animal)
         fig.savefig(os.path.join(save_here, f"{animal}_common_neurons.png"), dpi=300, bbox_inches="tight")
     else:
         fig.savefig(os.path.join(save_path, f"all_common_neurons.png"), dpi=300, bbox_inches="tight")
     plt.close(fig)
+
+def make_per_event_strcuture_plot(df, save_path: str, event_names: list[str], per_recording: bool, rec_name: str | None = None):
+    """Auxfun for making a heatmap of structure which neurons are from corresponding to events they encode.
+    """
+    event_names.remove("Structure")
+    names = [i.split("_")[:2] for i in event_names if "onsets" in i or "offsets" in i]
+    df.rename(columns={key: name for key, name in zip(event_names, names)})
+    
+    fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(8, 6))    
+    sns.heatmap(df, ax=ax, cmap="inferno", annot=True)
+    
+    if per_recording:
+        save_here = make_dir_save(save_path, rec_name)
+        fig.savefig(os.path.join(save_here, f"{rec_name}_per_event_structure.png", dpi=300))
+    else:
+        fig.savefig(os.path.join(save_path, f"{rec_name}_per_event_structure.png", dpi=300))

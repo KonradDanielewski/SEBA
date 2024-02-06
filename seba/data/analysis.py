@@ -100,7 +100,7 @@ def structurize_data(
 
                 # Take only all_fr, all_zsc and mean_fr, mean_zsc and bin_edges
                 all_fr, mean_fr = ephys.fr_events_binless(centered_ts, sigma_sec, sampling_out, pre_event, post_event)[:2]
-                all_zsc, mean_zsc = ephys.zscore_events(all_fr, bin_size, pre_event, post_event)[:2]
+                all_zsc, mean_zsc, sem, bin_edges = ephys.zscore_events(all_fr, bin_size, pre_event, post_event)
 
                 # Prepare index and columns
                 cols = [[rec], np.around(np.arange(-abs(pre_event), post_event, bin_size), 2)]
@@ -135,7 +135,7 @@ def structurize_data(
 
     try: 
         if calculate_responsive:
-            data_obj = responsive_units_wilcoxon(data_obj, event_names, rec_names, p_bound, spike_threshold)
+            data_obj = responsive_units_wilcoxon(data_obj, event_names, rec_names, p_bound, bin_edges, spike_threshold)
             return data_obj
         else:
             return data_obj
@@ -151,6 +151,7 @@ def responsive_units_wilcoxon(
     events: list[str],
     rec_names: list[str],
     p_bound: float,
+    bin_edges: np.array,
     spike_threshold: int | None = None,
     ) -> dict:
     """Performs Wilcoxon rank test to establish whether a neuron is responsive to a specific event.
@@ -187,10 +188,10 @@ def responsive_units_wilcoxon(
                 baseline = []
                 event = []
                 for instance in data_obj["centered_spike_timestamps"][event_name][rec_name][idx]:
-                    baseline.append(len(instance[instance < 0]))
-                    event.append(len(instance[instance > 0]))
+                    baseline.append(len(instance[instance < 0])/abs(min(bin_edges)))
+                    event.append(len(instance[instance > 0])/max(bin_edges))
                 if len(event) > 9: # Minimum value that doesn't result in a warning that there aren't enough events
-                    wilcoxon = stats.wilcoxon(event, baseline, correction=True, zero_method="zsplit", method="approx")[1]
+                    wilcoxon = stats.wilcoxon(event, baseline, correction=True, zero_method="zsplit", method="approx")[1] # Take only p value
                 else:
                     continue
                 if wilcoxon < p_bound:
@@ -236,45 +237,3 @@ def neurons_per_structure(data_folder: str | list, data_obj: dict, save_path: st
     
     if plot:
         plotting_funcs.plot_nrns_per_structure(df, save_path)
-
-# def neurons_per_event_structure(data_obj: dict, save_path: str, plot: bool = True):
-#     """Summary of a number of neurons per animal, event in a csv, creates csv for each structure
-#     NOTE: Neurons are repeated if a neuron is responsive to more than one behavior.
-    
-#     Args:
-#         data_obj: output of structurize_data function. Object containing ephys data structure
-#         save_path: path to which the plots and csv files will be saved
-#         plot: default True, if True creates simple bar plots per strucutre, x axis are events, y axis are neurons
-#     Returns:
-#         Saves histograms and data per event to desired location
-#     """
-
-#     rec_names = data_obj["unit_ids"].keys()
-
-#     for rec_name in rec_names:
-#         data_obj["brain_regions"][rec_name].unique()
-
-
-#     data_folder = auxiliary.check_data_folder(data_folder)
-
-#     behaviors = list(data_obj["all_fr_events_per_rat"].keys())
-#     subjects = list(data_obj["responsive_units"].keys())
-
-#     for behavior in behaviors:
-#         for subject, folder in zip(subjects, data_folder):
-#             df = pd.read_csv(os.path.join(folder, "cluster_info_good.csv"), index_col="cluster_id")
-#             nrn_ids = data_obj["responsive_units"][subject][behavior]
-#             df.loc[nrn_ids, behavior] = 1
-
-    
-    
-#     for behavior in behaviors:
-#         per_structure.append(sum([data_obj["responsive_units"][subject][behavior] for subject in subjects], []))
-
-#     df = pd.concat(per_structure)
-#     df = df.groupby(level=0).sum()
-
-#     df.to_csv(os.path.join(save_path, "neurons_per_behavior&structure.csv"))
-
-#     if plot:
-#         plotting_funcs.plot_nrns_per_event(df, save_path)
