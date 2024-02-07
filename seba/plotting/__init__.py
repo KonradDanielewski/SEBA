@@ -1,6 +1,7 @@
 """
 @author: K. Danielewski
 """
+
 from seba.plotting.plotting_funcs import (
     plot_lin_reg_scatter,
     plot_common_nrns_matrix,
@@ -9,5 +10,5 @@ from seba.plotting.plotting_funcs import (
     plot_psths,
     plot_psths_paired,
     plot_nrns_per_structure,
-    plot_nrns_per_event,
+    plot_neurons_per_event_structure,
 )

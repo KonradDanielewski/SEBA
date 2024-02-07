@@ -1,6 +1,7 @@
 """
 @author: K. Danielewski
 """
+
 from seba.version import __version__, VERSION
 
 from seba.data import (
@@ -19,10 +20,12 @@ from seba.plotting import (
     plot_heatmaps_paired,
     plot_psths,
     plot_psths_paired,
+    plot_nrns_per_structure,
+    plot_neurons_per_event_structure,
 )
 
 from seba.utils import (
     add_brain_regions,
     responsive_neurons2events,
-    append_event_to_binary
+    append_event_to_binary,
 )

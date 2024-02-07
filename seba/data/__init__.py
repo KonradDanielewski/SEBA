@@ -1,6 +1,7 @@
 """
 @author: K. Danielewski
 """
+
 from seba.data.analysis import (
     structurize_data,
     neurons_per_structure,
@@ -11,7 +12,7 @@ from seba.data.behavior_io import (
     read_boris,
 )
 
-from seba.data.ephys import(
+from seba.data.ephys import (
     calc_rasters,
     fr_events_binless,
     zscore_events,
