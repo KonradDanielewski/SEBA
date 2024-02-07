@@ -95,9 +95,7 @@ def prepare_data_structure(
     return data_obj
 
 
-def add_to_data_structure(
-    data_obj: dict | str, new_key: str, save_path: str, data_to_add
-):
+def add_to_data_structure(data_obj: dict | str, new_key: str, save_path: str, data_to_add):
     """Auxfun to add new data to the data structure"""
     if isinstance(data_obj, dict):
         pass
@@ -113,9 +111,7 @@ def add_to_data_structure(
         pickle.dump(data_obj, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 
-def apply_conditions(
-    data_folder: str or list, input_event: str, conditions: list, exclusive=True
-):
+def apply_conditions(data_folder: str or list, input_event: str, conditions: list, exclusive=True):
     """Function used to apply conditions to events to take only independent instances of an event or only instances when events happened together
     TODO: Consider cleaning up and if it's necessary
 

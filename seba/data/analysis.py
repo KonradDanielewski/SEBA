@@ -140,7 +140,14 @@ def structurize_data(
 
     try:
         if calculate_responsive:
-            data_obj = responsive_units_wilcoxon(data_obj, event_names, rec_names, p_bound, bin_edges, spike_threshold)
+            data_obj = responsive_units_wilcoxon(
+                data_obj=data_obj,
+                p_bound=p_bound,
+                bin_edges=bin_edges,
+                events=event_names,
+                rec_names=rec_names,
+                spike_threshold=spike_threshold,
+                )
             return data_obj
         else:
             return data_obj
@@ -228,9 +235,7 @@ def responsive_units_wilcoxon(
     return data_obj
 
 
-def neurons_per_structure(
-    data_folder: str | list, data_obj: dict, save_path: str, plot: bool = True
-):
+def neurons_per_structure(data_folder: str | list, data_obj: dict, save_path: str, plot: bool = True):
     """Summary of a number of neurons recorded from each structure
 
     Args:
@@ -241,7 +246,7 @@ def neurons_per_structure(
 
     Returns:
         Saves histograms of a number of neurons per structure and csv files with the data
-    """
+    """# TODO: Add responsive/all
     data_folder = auxiliary.check_data_folder(data_folder)
     events = data_obj["event_names"]
     rec_names = data_obj["recording_names"]
