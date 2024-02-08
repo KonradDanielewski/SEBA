@@ -21,13 +21,14 @@ def plot_common_nrns_matrix(
     save_path: str,
     per_recording: bool = False,
     percent_all_neurons: bool = True,
+    colormap: str = "inferno",
 ):
     """Function creating matrix plot of a perctage of common responsive neurons between pairs of events
 
     Args:
         data_obj: output of structurize_data. Stored in ephys_data.pickle
-        save_path: path to which the plots will be saved. Additional subfolders will be created on per-animal basis
-        per_recording: Toggles if the regression is done and plotted for all recorded neurons or on per-animal basis. Defaults to False.
+        save_path: path to which the plots will be saved. Additional subfolders will be created on per-recording basis
+        per_recording: Toggles if the regression is done and plotted for all recorded neurons or on per-recording basis. Defaults to False.
         percent_all_neurons: Toggles whether to show values as percentage of all neurons or percentage of responsive neurons. Defaults to True.
     Returns:
         Saves a matrix of the amount of common responsive neurons across event pairs
@@ -52,7 +53,7 @@ def plot_common_nrns_matrix(
                 nrns = len(data_obj["unit_ids"][rec_name])
                 df = df / nrns * 100
 
-            auxfun_plotting.make_common_matrix(df, save_path, per_recording=per_recording, animal=rec_name)
+            auxfun_plotting.make_common_matrix(df, save_path, colormap=colormap, per_recording=per_recording, rec_name=rec_name)
     else:
         df = pd.DataFrame(0, index=events, columns=events)
 
@@ -74,7 +75,7 @@ def plot_common_nrns_matrix(
                 nrns.append(len(data_obj["unit_ids"][rec_name]))
             df = df / sum(nrns) * 100
 
-        auxfun_plotting.make_common_matrix(df, save_path, per_recording=per_recording)
+        auxfun_plotting.make_common_matrix(df, save_path, colormap=colormap, per_recording=per_recording)
 
 
 def plot_psths(
@@ -88,12 +89,12 @@ def plot_psths(
 
     Args:
         data_obj: output of structurize_data function. Object containing ephys data structure
-        save_path: path to which the plots will be saved. Additional subfolders will be created on per-animal basis
+        save_path: path to which the plots will be saved. Additional subfolders will be created on per-recording basis
         responsive_only: Toggles whether to plot for all recorded cells or only the ones deemed significantly responsive. Defaults to False
         z_score: if to use z-score or raw firing rate. Defaults to True.
         ylimit: y_axis limit, first value is lower, second is upper bound. Defaults to [-1, 2.5].
     Returns:
-        Saves plots to set location, creating subfolders on per-animal basis. Each plot is named using event name and neuron ID
+        Saves plots to set location, creating subfolders on per-recording basis. Each plot is named using event name and neuron ID
     """
     sns.set_palette("colorblind")
 
@@ -155,7 +156,7 @@ def plot_psths(
 
 def plot_psths_paired(
     data_obj: dict,
-    event_pair: list,
+    event_pair: list[str, str],
     save_path: str,
     responsive_only: bool = False,
     z_score: bool = True,
@@ -166,12 +167,12 @@ def plot_psths_paired(
     Args:
         data_obj: output of structurize_data function. Object containing ephys data structure
         event_pair: list of two keys to plot together, assumes [subject, partner] order e.g., ["freezing_subject", "freezing_partner"]
-        save_path: path to which the plots will be saved. Additional subfolders will be created on per-animal basis
+        save_path: path to which the plots will be saved. Additional subfolders will be created on per-recording basis
         responsive_only: Toggles whether to plot for all recorded cells or only the ones deemed significantly responsive. Defaults to False
         z_score: if to use z-score or raw firing rate. Defaults to True.
         ylimit: y_axis limit, first value is lower, second is upper bound. Defaults to [-1, 2.5].
     Returns:
-        Saves plots to set location, creating subfolders on per-animal basis. Each plot is named using event name and neuron ID
+        Saves plots to set location, creating subfolders on per-recording basis. Each plot is named using event name and neuron ID
     """
     sns.set_palette("colorblind")
 
@@ -249,11 +250,11 @@ def plot_psths_paired(
 
 def plot_lin_reg_scatter(
     data_obj: dict,
-    event_pair: list,
+    event_pair: list[str, str],
     save_path: str,
     per_recording: bool = False,
     responsive_only: bool = False,
-    ax_limit=[-4, 4],
+    ax_limit: list[float, float] = [-4, 4],
     z_score: bool = True,
 ):
     """Creates scatter plots with regression results showing linear relationship between neuron
@@ -262,10 +263,10 @@ def plot_lin_reg_scatter(
     Args:
         data_obj: output of structurize_data function. Object containing ephys data structure
         event_pair: list of two keys to plot together, assumes [subject, partner] order e.g., ["freezing_subject", "freezing_partner"]
-        save_path: path to which the plots will be saved. Additional subfolders will be created on per-animal basis
+        save_path: path to which the plots will be saved. Additional subfolders will be created on per-recording basis
         responsive_only: Toggles whether to plot for all recorded cells or only the ones deemed significantly responsive. Defaults to False
         per_recording: Toggles if the regression is done and plotted for all recorded neurons
-            or on per-animal basis. Defaults to False.
+            or on per-recording basis. Defaults to False.
         ax_limit: axes limits, assumes 0 centered, even per axis. First value is x axis, second is y axis. Defaults to [-4, 4].
         z_score: required for compatibility. Always True
     Returns:
@@ -301,7 +302,13 @@ def plot_lin_reg_scatter(
             df = pd.concat([subject, partner], axis=1)
             # Make plots
             save_here = auxiliary.make_dir_save(save_path, rec_name)
-            auxfun_plotting.make_paired_scatter(df, filename, event_pair, ax_limit, save_here)
+            auxfun_plotting.make_paired_scatter(
+                df=df,
+                filename=filename,
+                event_pair=event_pair,
+                ax_limit=ax_limit,
+                save_path=save_here,
+                )
 
     else:
         sub_combined = []
@@ -330,7 +337,13 @@ def plot_lin_reg_scatter(
         df = pd.concat([subject, partner], axis=1)
 
         # Make plots
-        auxfun_plotting.make_paired_scatter(df, filename, event_pair, ax_limit, save_path)
+        auxfun_plotting.make_paired_scatter(
+                df=df,
+                filename=filename,
+                event_pair=event_pair,
+                ax_limit=ax_limit,
+                save_path=save_path,
+            )
 
 
 def plot_heatmaps(
@@ -347,14 +360,14 @@ def plot_heatmaps(
 
     Args:
         data_obj: output of structurize_data function. Object containing ephys data structure
-        save_path: path to which the plots will be saved. Additional subfolders will be created on per-animal basis
+        save_path: path to which the plots will be saved. Additional subfolders will be created on per-recording basis
         per_recording: Toggles if the regression is done and plotted for all recorded neurons
-            or on per-animal basis. Defaults to False.
+            or on per-recording basis. Defaults to False.
         responsive_only: Toggles whether to plot for all recorded cells or only the ones deemed significantly responsive. Defaults to False
         colormap: matplotlib colormap used for heatmap plotting. Defaults to "viridis".
         z_score: required for compatibility. Always True
     Returns:
-        Saves figures to desired location. If per-animal makes/uses folders with animal name
+        Saves figures to desired location. If per-recording makes/uses folders with recording name
     """
     pre_event = data_obj["bin_params"]["pre_event"]
     post_event = data_obj["bin_params"]["post_event"]
@@ -400,14 +413,14 @@ def plot_heatmaps(
                 )
 
             auxfun_plotting.make_heatmap(
-                subject,
-                onset_col_idx,
-                colormap,
-                y_axis,
-                event,
-                save_path,
-                x_tick,
-                y_tick,
+                subject=subject,
+                onset_col_idx=onset_col_idx,
+                colormap=colormap,
+                y_axis=y_axis,
+                filename=event,
+                save_path=save_path,
+                xticklabel=x_tick,
+                yticklabel=y_tick,
             )
 
         if per_recording:
@@ -426,37 +439,37 @@ def plot_heatmaps(
                     save_here = auxiliary.make_dir_save(save_path, rec_name)
 
                     if responsive_only:
-                        responsive_units = pd.Series(data_obj["responsive_units"][rec_name][event]).unique()
+                        responsive_units = data_obj["responsive_units"][rec_name][event]
                         subject = pd.DataFrame(np.array(subjects[rec_name]).mean(axis=1), index=data_obj["unit_ids"][rec_name], columns=col_axis).loc[responsive_units]
 
                         auxfun_plotting.make_heatmap(
-                            subject,
-                            onset_col_idx,
-                            colormap,
-                            y_axis,
-                            event,
-                            save_here,
-                            x_tick,
-                            y_tick,
+                            subject=subject,
+                            onset_col_idx=onset_col_idx,
+                            colormap=colormap,
+                            y_axis=y_axis,
+                            filename=event,
+                            save_path=save_here,
+                            xticklabel=x_tick,
+                            yticklabel=y_tick,
                         )
                     else:
                         subject = pd.DataFrame(np.array(subjects[rec_name]).mean(axis=1), columns=col_axis)
 
-                        auxfun_plotting.make_paired_heatmap(
-                            subject,
-                            onset_col_idx,
-                            colormap,
-                            y_axis,
-                            event,
-                            save_here,
-                            x_tick,
-                            y_tick,
+                        auxfun_plotting.make_heatmap(
+                            subject=subject,
+                            onset_col_idx=onset_col_idx,
+                            colormap=colormap,
+                            y_axis=y_axis,
+                            filename=event,
+                            save_path=save_here,
+                            xticklabel=x_tick,
+                            yticklabel=y_tick,
                         )
 
 
 def plot_heatmaps_paired(
     data_obj: dict,
-    event_pair: list,
+    event_pair: list[str, str],
     save_path: str,
     per_recording: bool = False,
     responsive_only: bool = False,
@@ -470,14 +483,14 @@ def plot_heatmaps_paired(
     Args:
         data_obj: output of structurize_data function. Object containing ephys data structure
         event_pair: list of two keys to plot together, assumes [subject, partner] order e.g., ["freezing_subject", "freezing_partner"]
-        save_path: path to which the plots will be saved. Additional subfolders will be created on per-animal basis
+        save_path: path to which the plots will be saved. Additional subfolders will be created on per-recording basis
         per_recording: Toggles if the regression is done and plotted for all recorded neurons
-            or on per-animal basis. Defaults to False.
+            or on per-recording basis. Defaults to False.
         responsive_only: Toggles whether to plot for all recorded cells or only the ones deemed significantly responsive. Defaults to False
         colormap: matplotlib colormap used for heatmap plotting. Defaults to "viridis".
         z_score: required for compatibility. Always True
     Returns:
-        Saves figures to desired location. If per-animal makes/uses folders with animal name
+        Saves figures to desired location. If per-recording makes/uses folders with recording name
     """
     # TODO: Fix handling of empty data when repsonsive_only=False
     pre_event = data_obj["bin_params"]["pre_event"]
@@ -503,10 +516,10 @@ def plot_heatmaps_paired(
             save_here = auxiliary.make_dir_save(save_path, rec_name)
 
             if responsive_only:
-                responsive_units = pd.Series(
+                responsive_units = np.unique(
                     data_obj["responsive_units"][rec_name][event_pair[0]]
                     + data_obj["responsive_units"][rec_name][event_pair[1]]
-                    ).unique()
+                    )
                 subject = pd.DataFrame(
                     np.array(subjects[rec_name]).mean(axis=1),
                     index=data_obj["unit_ids"][rec_name],
@@ -519,32 +532,32 @@ def plot_heatmaps_paired(
                 ).loc[responsive_units]
 
                 auxfun_plotting.make_paired_heatmap(
-                    subject,
-                    partner,
-                    event_pair,
-                    onset_col_idx,
-                    colormap,
-                    y_axis,
-                    filename,
-                    save_here,
-                    x_tick,
-                    y_tick,
+                    subject=subject,
+                    partner=partner,
+                    event_pair=event_pair,
+                    onset_col_idx=onset_col_idx,
+                    colormap=colormap,
+                    y_axis=y_axis,
+                    filename=filename,
+                    save_path=save_here,
+                    xticklabel=x_tick,
+                    yticklabel=y_tick,
                 )
             else:
                 subject = pd.DataFrame(np.array(subjects[rec_name]).mean(axis=1), columns=col_axis)
                 partner = pd.DataFrame(np.array(partners[rec_name]).mean(axis=1), columns=col_axis)
 
                 auxfun_plotting.make_paired_heatmap(
-                    subject,
-                    partner,
-                    event_pair,
-                    onset_col_idx,
-                    colormap,
-                    y_axis,
-                    filename,
-                    save_here,
-                    x_tick,
-                    y_tick,
+                    subject=subject,
+                    partner=partner,
+                    event_pair=event_pair,
+                    onset_col_idx=onset_col_idx,
+                    colormap=colormap,
+                    y_axis=y_axis,
+                    filename=filename,
+                    save_path=save_here,
+                    xticklabel=x_tick,
+                    yticklabel=y_tick,
                 )
     else:
         col_axis = np.around(np.arange(-abs(pre_event), post_event, bin_size), 2)
@@ -569,7 +582,10 @@ def plot_heatmaps_paired(
                 ):
                     continue
 
-                responsive_units = np.unique(data_obj["responsive_units"][rec_name][event_pair[0]] + data_obj["responsive_units"][rec_name][event_pair[1]])
+                responsive_units = np.unique(
+                    data_obj["responsive_units"][rec_name][event_pair[0]] 
+                    + data_obj["responsive_units"][rec_name][event_pair[1]]
+                    )
 
                 temp_subject = [i.mean(axis=0) for i in subjects[rec_name]]
                 temp_partner = [i.mean(axis=0) for i in partners[rec_name]]
@@ -604,16 +620,16 @@ def plot_heatmaps_paired(
         partner = partners.reindex(sorted_idx).reset_index(drop=True).copy()
 
         auxfun_plotting.make_paired_heatmap(
-            subject,
-            partner,
-            event_pair,
-            onset_col_idx,
-            colormap,
-            y_axis,
-            filename,
-            save_path,
-            x_tick,
-            y_tick,
+            subject=subject,
+            partner=partner,
+            event_pair=event_pair,
+            onset_col_idx=onset_col_idx,
+            colormap=colormap,
+            y_axis=y_axis,
+            filename=filename,
+            save_path=save_path,
+            xticklabel=x_tick,
+            yticklabel=y_tick,
         )
 
 
@@ -643,15 +659,21 @@ def plot_nrns_per_structure(df: pd.DataFrame, save_path: str):
     fig.clf()
 
 
-def plot_neurons_per_event_structure(data_folder: str | list, data_obj: dict, save_path: str, per_recording: bool = False):
+def plot_neurons_per_event_structure(
+    data_folder: str | list,
+    data_obj: dict,
+    save_path: str,
+    colormap: str = "inferno",
+    per_recording: bool = False,
+):
     """Creates a heatmap plot of structures vs events where intersection is a number of neurons from a specific structure
     encoding a specific event. Neurons that respond to many events are repeated.
 
     Args:
         data_folder: path to a folder containing all ephys data folders
         data_obj: output of structurize_data. Stored in ephys_data.pickle
-        save_path: path to which the plots will be saved. Additional subfolders will be created on per-animal basis
-        per_recording: Toggles if the regression is done and plotted for all recorded neurons or on per-animal basis.
+        save_path: path to which the plots will be saved. Additional subfolders will be created on per-recording basis
+        per_recording: Toggles if the regression is done and plotted for all recorded neurons or on per-recording basis.
     """
     data_folder = auxiliary.check_data_folder(data_folder)
     rec_names = data_obj["recording_names"]
@@ -662,7 +684,14 @@ def plot_neurons_per_event_structure(data_folder: str | list, data_obj: dict, sa
             df = pd.read_csv(os.path.join(dir, "cluster_info_good.csv"), index_col="cluster_id")
             event_names.append("Structure")
             df.loc[:, event_names].groupby("Structure").sum()
-            auxfun_plotting.make_per_event_strcuture_plot(df, save_path, event_names, per_recording, rec_name)
+            auxfun_plotting.make_per_event_strcuture_plot(
+                df=df,
+                save_path=save_path,
+                event_names=event_names,
+                per_recording=per_recording,
+                colormap=colormap,
+                rec_name=rec_name,
+                )
 
     else:
         df_list = []
@@ -670,4 +699,36 @@ def plot_neurons_per_event_structure(data_folder: str | list, data_obj: dict, sa
             df_list.append(pd.read_csv(os.path.join(dir, "cluster_info_good.csv"), index_col="cluster_id"))
         event_names.append("Structure")
         df = pd.concat(df_list).loc[:, event_names].groupby("Structure").sum()
-        auxfun_plotting.make_per_event_strcuture_plot(df, save_path, event_names, per_recording)
+        auxfun_plotting.make_per_event_strcuture_plot(
+            df=df,
+            save_path=save_path,
+            event_names=event_names,
+            colormap=colormap,
+            per_recording=per_recording,
+            )
+
+
+def plot_nrns_per_structure(df: pd.DataFrame, save_path: str):
+    """Plot number of responsive neurons per structure. Optional."""
+    sns.set_style("darkgrid")
+    fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(8, 8))
+
+    sns.barplot(
+        x=df.index,
+        y=df.values,
+        palette="colorblind",
+        legend=False,
+        hue=df.index,
+        )
+
+    bars = ax.bar(df.index, df.values)
+
+    plt.tight_layout(pad=2)
+
+    ax.set_title("Per structure summary")
+    ax.set_xlabel("Structure")
+    ax.set_ylabel("# of neurons")
+    ax.bar_label(bars)
+
+    fig.savefig(os.path.join(save_path, "summary_per_structure.png"), dpi=300)
+    fig.clf()

@@ -12,7 +12,14 @@ from scipy.stats import linregress
 from seba.utils.auxiliary import make_dir_save
 
 
-def load_dict(which: str, z_score: bool, data_obj: dict, event_pair: list[str] = None, event: str = None, single: bool = None) -> tuple:
+def load_dict(
+    which: str,
+    z_score: bool,
+    data_obj: dict,
+    event_pair: list[str, str] | None = None,
+    event: str | None = None,
+    single: bool | None = None,
+) -> tuple:
     """Aux for loading specific parts of the data_obj for plotting (electrophysiology_data.pickle)
 
     Args:
@@ -80,7 +87,13 @@ def load_dict(which: str, z_score: bool, data_obj: dict, event_pair: list[str] =
         return y_axis, subjects, partners
 
 
-def make_paired_scatter(df, filename, event_pair, ax_limit, save_path):
+def make_paired_scatter(
+    df,
+    filename: str,
+    event_pair: list[str, str],
+    ax_limit: list[float, float],
+    save_path: str,
+):
     """Auxiliary for making scatter plots"""
     result = np.around(linregress([df["subject"], df["partner"]]), 2)
     result = f"slope = {result[0]}\nr_val = {result[2]}\np_val = {result[3]}"
@@ -121,7 +134,16 @@ def make_paired_scatter(df, filename, event_pair, ax_limit, save_path):
     plt.close(fig)
 
 
-def make_heatmap(subject, onset_col_idx, colormap, y_axis, filename, save_path, xticklabel=50, yticklabel=25):
+def make_heatmap(
+    subject,
+    onset_col_idx: int,
+    colormap: str,
+    y_axis: str,
+    filename: str,
+    save_path: str,
+    xticklabel: int = 50,
+    yticklabel: int = 25,
+):
     """Auxiliary for making sinlge heatmap"""
     sorted_idx = subject.iloc[:, onset_col_idx:].mean(axis=1).sort_values().index
     subject = subject.reindex(sorted_idx).reset_index(drop=True).copy()
@@ -154,7 +176,18 @@ def make_heatmap(subject, onset_col_idx, colormap, y_axis, filename, save_path, 
     plt.close(fig)
 
 
-def make_paired_heatmap(subject, partner, event_pair, onset_col_idx, colormap, y_axis, filename, save_path, xticklabel=50, yticklabel=25):
+def make_paired_heatmap(
+    subject,
+    partner,
+    event_pair: list[str, str],
+    onset_col_idx: int,
+    colormap: str,
+    y_axis: str,
+    filename: str,
+    save_path: str,
+    xticklabel: int = 50,
+    yticklabel: int = 25,
+):
     """Auxiliary for making heatmaps"""
     sorted_idx = (
         (subject.iloc[:, onset_col_idx:] + partner.iloc[:, onset_col_idx:])
@@ -207,30 +240,43 @@ def make_paired_heatmap(subject, partner, event_pair, onset_col_idx, colormap, y
     plt.close(fig)
 
 
-def make_common_matrix(df, save_path, per_recording=None, animal=None):
-    """Auxiliary function for making a matrix plot of common responsive neurons between events"""  # TODO: clean up
+def make_common_matrix(
+    df,
+    save_path: str,
+    colormap: str,
+    per_recording: bool | None = None,
+    rec_name: str | None = None,
+):
+    """Auxiliary function for making a matrix plot of common responsive neurons between events""" # TODO: Add plot title
     mask = np.zeros_like(df, dtype=bool)
     mask[np.triu_indices_from(mask, k=1)] = True
     vmax = np.nanmax(df.to_numpy())
     fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(8, 6))
-    sns.heatmap(df, ax=ax, vmin=0, vmax=vmax, cmap="inferno", annot=True, mask=mask)
+    sns.heatmap(df, ax=ax, vmin=0, vmax=vmax, cmap=colormap, annot=True, mask=mask)
 
     if per_recording:
-        save_here = make_dir_save(save_path, animal)
-        fig.savefig(os.path.join(save_here, f"{animal}_common_neurons.png"), dpi=300, bbox_inches="tight")
+        save_here = make_dir_save(save_path, rec_name)
+        fig.savefig(os.path.join(save_here, f"{rec_name}_common_neurons.png"), dpi=300, bbox_inches="tight")
     else:
         fig.savefig(os.path.join(save_path, f"all_common_neurons.png"), dpi=300, bbox_inches="tight")
     plt.close(fig)
 
 
-def make_per_event_strcuture_plot(df, save_path: str, event_names: list[str], per_recording: bool, rec_name: str | None = None):
+def make_per_event_strcuture_plot(
+    df,
+    save_path: str,
+    event_names: list[str, str],
+    per_recording: bool,
+    colormap: str,
+    rec_name: str | None = None,
+):
     """Auxfun for making a heatmap of structure which neurons are from corresponding to events they encode."""
     event_names.remove("Structure")
     names = [i.split("_")[:2] for i in event_names if "onsets" in i or "offsets" in i]
     df.rename(columns={key: name for key, name in zip(event_names, names)})
 
     fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(8, 6))
-    sns.heatmap(df, ax=ax, cmap="inferno", annot=True)
+    sns.heatmap(df, ax=ax, cmap=colormap, annot=True)
 
     if per_recording:
         save_here = make_dir_save(save_path, rec_name)

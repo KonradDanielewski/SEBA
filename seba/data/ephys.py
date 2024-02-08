@@ -7,14 +7,17 @@ from scipy.ndimage import gaussian_filter1d
 
 
 def calc_rasters(
-    spks_ts: list, events_ts: str, pre_event: float = 1.0, post_event: float = 3.0
+    spks_ts: list[np.array],
+    events_ts: str,
+    pre_event: float = 1.0,
+    post_event: float = 3.0,
 ) -> list[list[np.array]]:
     """Centers spikes' timestamps on events' timestamps.
 
     Args:
         spks_ts: list of arrays with neuron timestamps (each array is one neuron)
         events_ts: path to a file with event timestamps
-        pre_event: pre event time in seconds. Defaults to 1.0.
+        pre_event: pre event time in  h, seconds. Defaults to 1.0.
         post_event: post event time in seconds. Defaults to 3.0.
 
     Returns:
@@ -40,12 +43,12 @@ def calc_rasters(
 
 
 def fr_events_binless(
-    centered_ts: list,
+    centered_ts: list[list[np.array]],
     sigma_sec: float,
     sampling_out: int = 1000,
     pre_event: float = 1.0,
     post_event: float = 3.0,
-):
+) -> (list, list, list, np.array):
     """Calculates firing rates in trials by applying a Gaussian kernel (binless).
 
     Args:
@@ -99,7 +102,12 @@ def fr_events_binless(
     return all_fr, mean_fr, sem_fr, t_vec
 
 
-def zscore_events(all_fr: list, bin_size: int, pre_event=1.0, post_event=3.0):
+def zscore_events(
+    all_fr: list[np.array],
+    bin_size: int,
+    pre_event: float = 1.0,
+    post_event: float = 3.0,
+) -> (list, list, list, np.array):
     """Calculates z-score in trials - where baseline is separate for each trial.
 
     Args:

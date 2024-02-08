@@ -41,7 +41,11 @@ def fix_wrong_shank_NP2(data_folder: str):
         tmp.to_csv(os.path.join(folder, r"cluster_info.csv"))
 
 
-def get_brain_regions(data_folder: str, histology_folder: str, neuropixels_20=True):
+def get_brain_regions(
+    data_folder: str,
+    histology_folder: str,
+    neuropixels_20: bool = True,
+):
     """Adds a column to cluster_info with structure names from herbs matched to good units based on depth
 
     Args:

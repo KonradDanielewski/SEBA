@@ -95,7 +95,12 @@ def prepare_data_structure(
     return data_obj
 
 
-def add_to_data_structure(data_obj: dict | str, new_key: str, save_path: str, data_to_add):
+def add_to_data_structure(
+    data_obj: dict | str,
+    new_key: str,
+    save_path: str,
+    data_to_add,
+):
     """Auxfun to add new data to the data structure"""
     if isinstance(data_obj, dict):
         pass
@@ -111,7 +116,12 @@ def add_to_data_structure(data_obj: dict | str, new_key: str, save_path: str, da
         pickle.dump(data_obj, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 
-def apply_conditions(data_folder: str or list, input_event: str, conditions: list, exclusive=True):
+def apply_conditions(
+    data_folder: str | list,
+    input_event: str,
+    conditions: list,
+    exclusive: bool = True,
+):
     """Function used to apply conditions to events to take only independent instances of an event or only instances when events happened together
     TODO: Consider cleaning up and if it's necessary
 
@@ -155,7 +165,13 @@ def apply_conditions(data_folder: str or list, input_event: str, conditions: lis
             np.savetxt(os.path.join(save_path, input_event + "_" + name + "_together.txt"), output, fmt="%1.6f")
 
 
-def save_timestamps_txt(starts, stops, name, save_path, onsets_only):
+def save_timestamps_txt(
+    starts: np.array,
+    stops: np.array,
+    name: str,
+    save_path: str,
+    onsets_only: bool,
+):
     """Auxfun for saving files with timestamps"""
     # Save text files with timestamps
     if len(starts) > 0:
@@ -164,11 +180,17 @@ def save_timestamps_txt(starts, stops, name, save_path, onsets_only):
         np.savetxt(os.path.join(save_path, f"{name}_offsets.txt"), stops, fmt="%1.6f")
 
 
-def event_filled_preparation(df_binary, name, starts, stops, cam_TTL):
+def fill_binary_data(
+    df_binary: pd.DataFrame,
+    name: str,
+    starts: np.array,
+    stops: np.array,
+    cam_TTL: np.array,
+):
     """Aux function for creating events_filled_conditions"""
     # If last event has no stop add stop as the last index of the recording
     if len(starts) - len(stops) == 1:
-        stops[len(starts)] = list(cam_TTL)[-1]
+        stops[len(starts)] = cam_TTL[-1]
 
     # Match closest timestamps between camera and event and get indices
     starts = np.searchsorted(cam_TTL, starts)
@@ -179,7 +201,10 @@ def event_filled_preparation(df_binary, name, starts, stops, cam_TTL):
 
 
 def append_event_to_binary(
-    directory: str, event_filepath: str, event_len: int, onsets_only: bool = True
+    directory: str,
+    event_filepath: str,
+    event_len: int,
+    onsets_only: bool = True,
 ):
     """Aux function for appending TTL event
 
@@ -206,20 +231,17 @@ def append_event_to_binary(
         raise
 
     name = os.path.basename(event_filepath).split(".")[0].lower()
+    save_path = os.path.join(directory, "events")
 
-    np.savetxt(os.path.join(directory, "events", f"{name}_onsets.txt"), event, fmt="%1.6f")
-    if not onsets_only:
-        offsets = cam_TTL(np.searchsorted(cam_TTL, event + event_len))
-        np.savetxt(os.path.join(directory, "events", f"{name}_onsets.txt"), offsets, fmt="%1.6f")
-
-    event_starts = np.searchsorted(cam_TTL, event, side="left")
-    event_stops = np.searchsorted(cam_TTL, event + event_len)
     events_df[name] = 0
 
-    # Write ones where event is taking place
-    ones = sum([list(range(start, stop)) for start, stop in zip(event_starts, event_stops)], [])
-    events_df.loc[ones, name] = 1
-    events_df = events_df.sort_index(axis=1)
+    starts = np.searchsorted(cam_TTL, event)
+    stops = np.searchsorted(cam_TTL, event + event_len)
+
+    save_timestamps_txt(event, cam_TTL[stops], name, directory, save_path, onsets_only)
+    fill_binary_data(events_df, name, starts, stops, cam_TTL)
+
+    # Overwrite the events_binary
     events_df.to_csv(os.path.join(directory, "events", "events_binary.csv"), index=False)
 
 

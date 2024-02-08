@@ -235,7 +235,12 @@ def responsive_units_wilcoxon(
     return data_obj
 
 
-def neurons_per_structure(data_folder: str | list, data_obj: dict, save_path: str, plot: bool = True):
+def neurons_per_structure(
+    data_folder: str | list,
+    data_obj: dict,
+    save_path: str,
+    plot: bool = True,
+):
     """Summary of a number of neurons recorded from each structure
 
     Args:
