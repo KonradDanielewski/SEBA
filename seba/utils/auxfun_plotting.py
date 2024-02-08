@@ -168,11 +168,7 @@ def make_heatmap(
     ax.set_ylabel("Neurons")
     fig.text(0.5, 0.04, "Seconds", ha="center")
 
-    fig.savefig(
-        os.path.join(save_path, f"{filename}_heatmaps.png"),
-        dpi=300,
-        bbox_inches="tight",
-    )
+    fig.savefig(os.path.join(save_path, f"{filename}_heatmaps.png"), dpi=300, bbox_inches="tight")
     plt.close(fig)
 
 
@@ -262,7 +258,7 @@ def make_common_matrix(
     plt.close(fig)
 
 
-def make_per_event_strcuture_plot(
+def make_per_event_structure_plot(
     df,
     save_path: str,
     event_names: list[str, str],
@@ -271,15 +267,14 @@ def make_per_event_strcuture_plot(
     rec_name: str | None = None,
 ):
     """Auxfun for making a heatmap of structure which neurons are from corresponding to events they encode."""
-    event_names.remove("Structure")
-    names = [i.split("_")[:2] for i in event_names if "onsets" in i or "offsets" in i]
+    names = ["_".join(i.split("_")[:2]) for i in event_names if "onsets" in i or "offsets" in i]
     df.rename(columns={key: name for key, name in zip(event_names, names)})
 
-    fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(8, 6))
+    fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(10, 8))
     sns.heatmap(df, ax=ax, cmap=colormap, annot=True)
 
     if per_recording:
         save_here = make_dir_save(save_path, rec_name)
-        fig.savefig(os.path.join(save_here, f"{rec_name}_per_event_structure.png", dpi=300))
+        fig.savefig(os.path.join(save_here, f"{rec_name}_per_event_structure.png"), dpi=300, bbox_inches="tight")
     else:
-        fig.savefig(os.path.join(save_path, f"{rec_name}_per_event_structure.png", dpi=300))
+        fig.savefig(os.path.join(save_path, f"per_event_structure.png"), dpi=300, bbox_inches="tight")

@@ -51,7 +51,7 @@ def prepare_data_structure(
         "post_event": post_event,
         "bin_size": bin_size,
     }
-    responsive_units = {recording: {event: [] for event in event_names} for recording in rec_names}
+    responsive_units = {recording: {event: None for event in event_names} for recording in rec_names}
     events = event_names
     recording_names = rec_names
 

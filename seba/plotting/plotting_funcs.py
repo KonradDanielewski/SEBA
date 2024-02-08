@@ -41,8 +41,8 @@ def plot_common_nrns_matrix(
             df = pd.DataFrame(np.nan, index=events, columns=events)
             for event1, event2 in combinations_with_replacement(events, 2):
                 if (
-                    data_obj["responsive_units"][rec_name][event1] == None
-                    or data_obj["responsive_units"][rec_name][event2] == None
+                    data_obj["responsive_units"][rec_name][event1] is None
+                    or data_obj["responsive_units"][rec_name][event2] is None
                 ):
                     continue
                 df.loc[event2, event1] = len(
@@ -60,8 +60,8 @@ def plot_common_nrns_matrix(
         for rec_name in rec_names:
             for event1, event2 in combinations_with_replacement(events, 2):
                 if (
-                    data_obj["responsive_units"][rec_name][event1] == None
-                    or data_obj["responsive_units"][rec_name][event2] == None
+                    data_obj["responsive_units"][rec_name][event1] is None
+                    or data_obj["responsive_units"][rec_name][event2] is None
                 ):
                     continue
                 count = len(
@@ -117,15 +117,13 @@ def plot_psths(
             single=True,
         )
         for rec_name in rec_names:
-
+            if subject[rec_name] is None:
+                continue
+            if data_obj["responsive_units"][rec_name][event] is None:
+                continue
             save_here = auxiliary.make_dir_save(save_path, rec_name)
 
-            responsive_cells = set(responsive_ids[rec_name][event])
-            cells_to_use = set(unit_ids[rec_name]).intersection(responsive_cells)
-
-            for idx, unit_id in enumerate(unit_ids[rec_name]):
-                if responsive_only and unit_id not in cells_to_use:
-                    continue
+            for idx, unit_id in enumerate(responsive_ids[rec_name][event]):
                 # Prepare data for proper axes
                 col_axis = np.around(np.arange(-abs(pre_event), post_event, bin_size), 2)
                 df0 = pd.DataFrame(subject[rec_name][idx]).set_axis(col_axis, axis=1)
@@ -180,6 +178,7 @@ def plot_psths_paired(
     post_event = data_obj["bin_params"]["post_event"]
     bin_size = data_obj["bin_params"]["bin_size"]
     unit_ids = data_obj["unit_ids"]
+    rec_names = data_obj["recording_names"]
     responsive_ids = data_obj["responsive_units"]
 
     filename = event_pair[0] + "_" + event_pair[1]
@@ -192,7 +191,7 @@ def plot_psths_paired(
         single=False,
     )
 
-    for rec_name in unit_ids.keys():
+    for rec_name in rec_names:
         save_here = auxiliary.make_dir_save(save_path, rec_name)
         if responsive_only:
             responsive_cells = list(
@@ -206,7 +205,7 @@ def plot_psths_paired(
             if responsive_only and unit_id not in responsive_cells:
                 continue
 
-            if subjects[rec_name] == None or partners[rec_name] == None:
+            if subjects[rec_name] is None or partners[rec_name] is None:
                 continue
 
             # Prepare data for proper axes
@@ -393,9 +392,11 @@ def plot_heatmaps(
                 responsive_subject = []
 
                 for rec_name in rec_names:
-                    if subjects[rec_name] == None:
+                    if subjects[rec_name] is None:
                         continue
                     responsive_units = data_obj["responsive_units"][rec_name][event]
+                    if len(responsive_units) == 0:
+                        continue
                     temp_subject = [i.mean(axis=0) for i in subjects[rec_name]]
 
                     df_subs = pd.DataFrame(temp_subject, index=data_obj["unit_ids"][rec_name]).loc[responsive_units]
@@ -434,37 +435,42 @@ def plot_heatmaps(
             col_axis = np.around(np.arange(-abs(pre_event), post_event, bin_size), 2)
 
             for rec_name in rec_names:
-                for event in events:
 
-                    save_here = auxiliary.make_dir_save(save_path, rec_name)
+                save_here = auxiliary.make_dir_save(save_path, rec_name)
 
-                    if responsive_only:
-                        responsive_units = data_obj["responsive_units"][rec_name][event]
-                        subject = pd.DataFrame(np.array(subjects[rec_name]).mean(axis=1), index=data_obj["unit_ids"][rec_name], columns=col_axis).loc[responsive_units]
-
-                        auxfun_plotting.make_heatmap(
-                            subject=subject,
-                            onset_col_idx=onset_col_idx,
-                            colormap=colormap,
-                            y_axis=y_axis,
-                            filename=event,
-                            save_path=save_here,
-                            xticklabel=x_tick,
-                            yticklabel=y_tick,
-                        )
-                    else:
-                        subject = pd.DataFrame(np.array(subjects[rec_name]).mean(axis=1), columns=col_axis)
-
-                        auxfun_plotting.make_heatmap(
-                            subject=subject,
-                            onset_col_idx=onset_col_idx,
-                            colormap=colormap,
-                            y_axis=y_axis,
-                            filename=event,
-                            save_path=save_here,
-                            xticklabel=x_tick,
-                            yticklabel=y_tick,
-                        )
+                if responsive_only:
+                    responsive_units = data_obj["responsive_units"][rec_name][event]
+                    if subjects[rec_name] is None:
+                        continue
+                    if len(responsive_units) == 0:
+                        continue
+                    subject = pd.DataFrame(np.array(subjects[rec_name]).mean(axis=1), index=data_obj["unit_ids"][rec_name], columns=col_axis).loc[responsive_units]
+                    auxfun_plotting.make_heatmap(
+                        subject=subject,
+                        onset_col_idx=onset_col_idx,
+                        colormap=colormap,
+                        y_axis=y_axis,
+                        filename=event,
+                        save_path=save_here,
+                        xticklabel=x_tick,
+                        yticklabel=y_tick,
+                    )
+                else:
+                    if subjects[rec_name] is None:
+                        continue
+                    subject = pd.DataFrame(np.array(subjects[rec_name]).mean(axis=1), columns=col_axis)
+                    if subject is None:
+                        continue
+                    auxfun_plotting.make_heatmap(
+                        subject=subject,
+                        onset_col_idx=onset_col_idx,
+                        colormap=colormap,
+                        y_axis=y_axis,
+                        filename=event,
+                        save_path=save_here,
+                        xticklabel=x_tick,
+                        yticklabel=y_tick,
+                    )
 
 
 def plot_heatmaps_paired(
@@ -492,7 +498,7 @@ def plot_heatmaps_paired(
     Returns:
         Saves figures to desired location. If per-recording makes/uses folders with recording name
     """
-    # TODO: Fix handling of empty data when repsonsive_only=False
+    # TODO: Fix plotting firing rate (cmap min/max are hardcoded at the moment - makes no sense)
     pre_event = data_obj["bin_params"]["pre_event"]
     post_event = data_obj["bin_params"]["post_event"]
     bin_size = data_obj["bin_params"]["bin_size"]
@@ -511,15 +517,20 @@ def plot_heatmaps_paired(
         col_axis = np.around(np.arange(-abs(pre_event), post_event, bin_size), 2)
 
         for rec_name in subjects.keys():
-            if subjects[rec_name] == None or partners[rec_name] == None:
+            if subjects[rec_name] is None or partners[rec_name] is None:
                 continue
             save_here = auxiliary.make_dir_save(save_path, rec_name)
-
             if responsive_only:
+                if (
+                    data_obj["responsive_units"][rec_name][event_pair[0]] is None
+                    or data_obj["responsive_units"][rec_name][event_pair[1]] is None
+                ):
+                    continue
+
                 responsive_units = np.unique(
                     data_obj["responsive_units"][rec_name][event_pair[0]]
                     + data_obj["responsive_units"][rec_name][event_pair[1]]
-                    )
+                )
                 subject = pd.DataFrame(
                     np.array(subjects[rec_name]).mean(axis=1),
                     index=data_obj["unit_ids"][rec_name],
@@ -574,11 +585,11 @@ def plot_heatmaps_paired(
             responsive_partners = []
 
             for rec_name in subjects:
-                if subjects[rec_name] == None or partners[rec_name] == None:
+                if subjects[rec_name] is None or partners[rec_name] is None:
                     continue
                 if (
-                    data_obj["responsive_units"][rec_name][event_pair[0]] == None
-                    or data_obj["responsive_units"][rec_name][event_pair[1]] == None
+                    data_obj["responsive_units"][rec_name][event_pair[0]] is None
+                    or data_obj["responsive_units"][rec_name][event_pair[1]] is None
                 ):
                     continue
 
@@ -678,13 +689,18 @@ def plot_neurons_per_event_structure(
     data_folder = auxiliary.check_data_folder(data_folder)
     rec_names = data_obj["recording_names"]
     event_names = data_obj["event_names"]
+    cols = data_obj["event_names"] + ["Structure"]
 
     if per_recording:
-        for dir, rec_name in (data_folder, rec_names):
-            df = pd.read_csv(os.path.join(dir, "cluster_info_good.csv"), index_col="cluster_id")
-            event_names.append("Structure")
-            df.loc[:, event_names].groupby("Structure").sum()
-            auxfun_plotting.make_per_event_strcuture_plot(
+        for dir, rec_name in zip(data_folder, rec_names):
+            df = pd.read_csv(
+                    os.path.join(dir, "cluster_info_good.csv"),
+                    index_col="cluster_id",
+                    usecols=cols + ["cluster_id"],
+                )
+            df = df.loc[:, event_names + ["Structure"]].groupby("Structure").sum()
+            
+            auxfun_plotting.make_per_event_structure_plot(
                 df=df,
                 save_path=save_path,
                 event_names=event_names,
@@ -692,14 +708,19 @@ def plot_neurons_per_event_structure(
                 colormap=colormap,
                 rec_name=rec_name,
                 )
-
     else:
         df_list = []
         for dir in data_folder:
-            df_list.append(pd.read_csv(os.path.join(dir, "cluster_info_good.csv"), index_col="cluster_id"))
-        event_names.append("Structure")
-        df = pd.concat(df_list).loc[:, event_names].groupby("Structure").sum()
-        auxfun_plotting.make_per_event_strcuture_plot(
+            df_list.append(
+                pd.read_csv(
+                    os.path.join(dir, "cluster_info_good.csv"), 
+                    index_col="cluster_id", 
+                    usecols=cols + ["cluster_id"],
+                )
+            )
+        df = pd.concat(df_list).loc[:, event_names + ["Structure"]].groupby("Structure").sum()
+        
+        auxfun_plotting.make_per_event_structure_plot(
             df=df,
             save_path=save_path,
             event_names=event_names,
