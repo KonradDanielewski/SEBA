@@ -21,7 +21,7 @@ from seba.utils import (
 
 
 def structurize_data(
-    data_folder: str or list,
+    data_folder: str | list,
     sigma_sec: float = 0.1,
     pre_event: float = 1.0,
     post_event: float = 3.0,

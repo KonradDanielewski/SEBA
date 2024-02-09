@@ -56,8 +56,8 @@ def get_brain_regions(
         Saves a new cluster_info_good.csv file that contains only the neurons that where deemed to be single units
     """
     data_folder = auxiliary.check_data_folder(data_folder)
+    histology_folder = auxiliary.check_data_folder(histology_folder)
 
-    histology_folder = glob(histology_folder + "\\*")
     for cluster_info, histology in zip(data_folder, histology_folder):
         tmp = pd.read_csv(os.path.join(cluster_info, r"cluster_info.csv"))
         good_rows = tmp.query("group == 'good'").copy()
