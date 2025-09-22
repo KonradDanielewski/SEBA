@@ -1,5 +1,5 @@
 """
-@author: K. Danielewski
+DO ZMIANY
 """
 
 from seba.version import __version__, VERSION
