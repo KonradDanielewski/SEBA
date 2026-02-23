@@ -51,7 +51,7 @@ def prepare_data_structure(
         "post_event": post_event,
         "bin_size": bin_size,
     }
-    responsive_units = {recording: {event: None for event in event_names} for recording in rec_names}
+    responsive_units = {recording: {event: [] for event in event_names} for recording in rec_names}
     events = event_names
     recording_names = rec_names
 
@@ -238,7 +238,7 @@ def append_event_to_binary(
     starts = np.searchsorted(cam_TTL, event)
     stops = np.searchsorted(cam_TTL, event + event_len)
 
-    save_timestamps_txt(event, cam_TTL[stops], name, directory, save_path, onsets_only)
+    save_timestamps_txt(event, cam_TTL[stops], name, save_path, onsets_only)
     fill_binary_data(events_df, name, starts, stops, cam_TTL)
 
     # Overwrite the events_binary

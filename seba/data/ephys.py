@@ -48,7 +48,7 @@ def fr_events_binless(
     sampling_out: int = 1000,
     pre_event: float = 1.0,
     post_event: float = 3.0,
-) -> (list, list, list, np.array):
+) -> tuple[list, list, list, np.array]:
     """Calculates firing rates in trials by applying a Gaussian kernel (binless).
 
     Args:
@@ -107,7 +107,7 @@ def zscore_events(
     bin_size: int,
     pre_event: float = 1.0,
     post_event: float = 3.0,
-) -> (list, list, list, np.array):
+) -> tuple[list, list, list, np.array]:
     """Calculates z-score in trials - where baseline is separate for each trial.
 
     Args:

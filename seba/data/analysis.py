@@ -228,6 +228,7 @@ def responsive_units_wilcoxon(
 
     fdr_test["corrected"] = multipletests(pvals=fdr_test["raw"], alpha=0.95, method="fdr_tsbh")[1]
     significant = fdr_test[fdr_test["corrected"] < p_bound].index
+    print(significant)
     for i in significant:
         recording, eve, id = i.split("#")
         data_obj["responsive_units"][recording][eve].append(int(id))
