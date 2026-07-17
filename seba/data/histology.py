@@ -24,7 +24,7 @@ def fix_wrong_shank_NP2(data_folder: str):
     data_folder = auxiliary.check_data_folder(data_folder)
 
     for folder in data_folder:
-        tmp = pd.read_csv(os.path.join(folder, r"cluster_info.tsv"), index_col="ch", sep="/t")
+        tmp = pd.read_csv(os.path.join(folder, r"cluster_info.tsv"), index_col="ch", sep="\t")
         obj = loadmat(os.path.join(folder, "chanMap.mat"))
 
         # Create temporary df to store shank and channel info, -1 needed to address matlab 1 based indexing
@@ -53,13 +53,13 @@ def get_brain_regions(
         histology_folder (str): path to directory containing directory per animal of herbs probe X.pkl files
         neuropixels_version (bool): default True, neuropixels version. Toggles NP shanks number (1 for 1.0, 4 for 2.0)
     Returns:
-        Saves a new cluster_info_good.csv file that contains only the neurons that where deemed to be single units
+        Adds a Structure column to cluster_info.tsv based on histology depth matching.
     """
     data_folder = auxiliary.check_data_folder(data_folder)
     histology_folder = auxiliary.check_data_folder(histology_folder)
 
     for cluster_info, histology in zip(data_folder, histology_folder):
-        tmp = pd.read_csv(os.path.join(cluster_info, r"cluster_info.csv"))
+        tmp = pd.read_csv(os.path.join(cluster_info, r"cluster_info.tsv"), sep="\t")
         good_rows = tmp.query("group == 'good'").copy()
 
         if neuropixels_20:
@@ -114,7 +114,10 @@ def get_brain_regions(
                     .sort_index()
                     .drop(columns=["cluster_id"])
                 )
-                temp.to_csv(os.path.join(cluster_info, r"cluster_info_good.csv"))
+                tsv_path = os.path.join(cluster_info, "cluster_info.tsv")
+                tsv = pd.read_csv(tsv_path, sep="\t")
+                tsv["Structure"] = tsv["cluster_id"].map(temp["Structure"])
+                tsv.to_csv(tsv_path, sep="\t", index=False)
         if neuropixels_20:
             output = pd.concat(all_shanks)
             output = (
@@ -123,4 +126,7 @@ def get_brain_regions(
                 .sort_index()
                 .drop(columns=["cluster_id"])
             )
-            output.to_csv(os.path.join(cluster_info, r"cluster_info_good.csv"))
+            tsv_path = os.path.join(cluster_info, "cluster_info.tsv")
+            tsv = pd.read_csv(tsv_path, sep="\t")
+            tsv["Structure"] = tsv["cluster_id"].map(output["Structure"])
+            tsv.to_csv(tsv_path, sep="\t", index=False)

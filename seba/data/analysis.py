@@ -8,6 +8,7 @@ from glob import glob
 
 import numpy as np
 import pandas as pd
+import polars as pl
 from scipy import stats
 from statsmodels.stats.multitest import multipletests
 
@@ -28,7 +29,6 @@ def structurize_data(
     bin_size: float = 0.01,
     calculate_responsive: bool = True,
     p_bound: float | None = None,
-    spike_threshold: int | None = None,
     save_output: bool = True,
     save_path: str | None = None,
     event_names: list[str] | None = None,
@@ -41,11 +41,12 @@ def structurize_data(
         pre_event: pre event time in seconds.
         post_event: post event time in seconds.
         bin_size: resampling factor used for firing rate calculation in seconds.
-        calculate_responsive: Whether to check neuron responsivity.
-        p_bound: If not provided and calculate_responsive is True, set to 0.01.
+        calculate_responsive: whether to classify neuron responsivity via z-score threshold.
+        p_bound: two-tailed p-value used to derive the z-score cutoff (e.g. 0.05 → z=1.96).
+            If not provided and calculate_responsive is True, defaults to 0.05.
         save_output: saves output data structure to a pickle file.
         save_path: path to which the file should be saved if save_output is True. File will be named ephys_data.pickle.
-        event_names: list of all possible events if different then the ones in the first recording directory. Should be provided if
+        event_names: list of all possible events if different from the ones in the first recording directory.
 
     Returns:
         data_obj: data structure in form of a dictionary. If save_path specified, then saved as a pickle file.
@@ -103,9 +104,8 @@ def structurize_data(
                 data_obj["unit_ids"][rec] = unit_ids
                 data_obj["centered_spike_timestamps"][event][rec] = centered_ts
 
-                # Take only all_fr, all_zsc and mean_fr, mean_zsc and bin_edges
                 all_fr, mean_fr = ephys.fr_events_binless(centered_ts, sigma_sec, sampling_out, pre_event, post_event)[:2]
-                all_zsc, mean_zsc, sem, bin_edges = ephys.zscore_events(all_fr, bin_size, pre_event, post_event)
+                all_zsc, mean_zsc, sem, _ = ephys.zscore_events(all_fr, bin_size, pre_event, post_event)
 
                 # Prepare index and columns
                 cols = [[rec], np.around(np.arange(-abs(pre_event), post_event, bin_size), 2)]
@@ -131,7 +131,6 @@ def structurize_data(
         # Concat mean z-scores and firing rates into one DataFrame per event
         mean_zscored_rats = pd.concat(mean_zscs, axis=0).reset_index(drop=True)
         mean_fr_rats = pd.concat(mean_frs, axis=0).reset_index(drop=True)
-
         # Write means for all and per rat into the data
         data_obj["mean_zscored_events_all_rats"][event] = mean_zscored_rats
         data_obj["mean_fr_events_all_rats"][event] = mean_fr_rats
@@ -140,14 +139,12 @@ def structurize_data(
 
     try:
         if calculate_responsive:
-            data_obj = responsive_units_wilcoxon(
+            data_obj["responsive_units"] = responsive_units_zscore(
                 data_obj=data_obj,
                 p_bound=p_bound,
-                bin_edges=bin_edges,
                 events=event_names,
                 rec_names=rec_names,
-                spike_threshold=spike_threshold,
-                )
+            )
             return data_obj
         else:
             return data_obj
@@ -155,85 +152,68 @@ def structurize_data(
         if save_output:
             if not os.path.exists(save_path):
                 os.mkdir(save_path)
-        with open(f"{save_path}\\ephys_data.pickle", "wb") as handle:
-            pickle.dump(data_obj, handle, protocol=pickle.HIGHEST_PROTOCOL)
+            with open(os.path.join(f"{save_path}", "ephys_data.pickle"), "wb") as handle:
+                pickle.dump(data_obj, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
-
-def responsive_units_wilcoxon(
+def responsive_units_zscore(
     data_obj: dict,
-    p_bound: float,
-    bin_edges: np.array,
+    p_bound: float = 0.05,
     events: list[str] | None = None,
     rec_names: list[str] | None = None,
-    spike_threshold: int | None = None,
-) -> dict:
-    """Performs Wilcoxon rank test to establish whether a neuron is responsive to a specific event.
+) -> pl.DataFrame:
+    """Detect responsive neurons by thresholding the mean z-scored PSTH.
+
+    A neuron is responsive if its mean z-score exceeds the threshold derived from
+    p_bound in any post-event bin. The threshold is the two-tailed critical value:
+    z = norm.ppf(1 - p_bound / 2), e.g. 1.96 for p=0.05, 2.58 for p=0.01.
+    Only post-event bins are evaluated (bins at t >= 0).
 
     Args:
-        data_obj: output of structurize_data. Stored in ephys_data.pickle
-        events: names of events
-        rec_names: names of recordings
-        p_bound: p value to be used in filtering rank test output
-        spike_threshold: specifies minimum number of spikes that should happen per event instance to be considered in rank test.
-            if more than half of the events have less than that number of spikes this neuron is discarded from the rank test.
+        data_obj: output of structurize_data
+        p_bound: two-tailed p-value threshold used to derive the z-score cutoff
+        events: subset of events to test (default: all)
+        rec_names: subset of recordings to test (default: all)
 
     Returns:
-        Dictionary of responsive units per recording per event.
+        pl.DataFrame with columns: recording (str), event (str), neuron_id (int),
+        responsivity (str: "positive" | "negative" | "no_response")
     """
-    if isinstance(events, list):
-        pass
-    else:
+    if events is None:
         events = data_obj["event_names"]
-
-    if isinstance(rec_names, list):
-        pass
-    else:
+    if rec_names is None:
         rec_names = data_obj["recording_names"]
 
-    fdr_test = pd.DataFrame(columns=["raw", "corrected"])
-    for event_name in events:
-        for rec_name in rec_names:
-            if data_obj["centered_spike_timestamps"][event_name][rec_name] == None:
+    z_threshold = stats.norm.ppf(1 - p_bound / 2)
+
+    pre_event = abs(data_obj["bin_params"]["pre_event"])
+    bin_size = data_obj["bin_params"]["bin_size"]
+    post_event_col = round(pre_event / bin_size)
+
+    rows = []
+    for rec_name in rec_names:
+        for event in events:
+            psth = data_obj["mean_zscored_events_per_rat"][event].get(rec_name)
+            if psth is None:
                 continue
-            for idx, unit_id in enumerate(data_obj["unit_ids"][rec_name]):
-                n_events = len(data_obj["centered_spike_timestamps"][event_name][rec_name][idx])
 
-                if n_events == 0:
-                    continue
+            post_event_psth = psth.dropna().iloc[:, post_event_col:]
 
-                if isinstance(spike_threshold, int):
-                    spikes_per_event = [len(i) for i in data_obj["centered_spike_timestamps"][event_name][rec_name][idx]]
-                    invalid = sum([1 if i < spike_threshold else 0 for i in spikes_per_event])
-
-                    if invalid / n_events > 0.5:
-                        continue
-
-                baseline = []
-                event = []
-                for instance in data_obj["centered_spike_timestamps"][event_name][rec_name][idx]:
-                    baseline.append(len(instance[instance < 0]) / abs(min(bin_edges)))
-                    event.append(len(instance[instance > 0]) / max(bin_edges))
-                if (len(event) > 9):  # Minimum value that doesn't result in a warning that there aren't enough events
-                    wilcoxon = stats.wilcoxon(
-                        event,
-                        baseline,
-                        correction=True,
-                        zero_method="zsplit",
-                        method="approx",
-                    )[1]  # Take only p value
+            for neuron_id in post_event_psth.index:
+                row = post_event_psth.loc[neuron_id]
+                if row.max() > z_threshold:
+                    responsivity = "positive"
+                elif row.min() < -z_threshold:
+                    responsivity = "negative"
                 else:
-                    continue
-                if wilcoxon < p_bound:
-                    fdr_test.loc[f"{rec_name}#{event_name}#{unit_id}", "raw"] = wilcoxon
+                    responsivity = "no_response"
+                rows.append({
+                    "recording": rec_name,
+                    "event": event,
+                    "unit_id": int(neuron_id),
+                    "responsivity": responsivity,
+                })
 
-    fdr_test["corrected"] = multipletests(pvals=fdr_test["raw"], alpha=0.95, method="fdr_tsbh")[1]
-    significant = fdr_test[fdr_test["corrected"] < p_bound].index
-    print(significant)
-    for i in significant:
-        recording, eve, id = i.split("#")
-        data_obj["responsive_units"][recording][eve].append(int(id))
-
-    return data_obj
+    return pl.DataFrame(rows)
 
 
 def neurons_per_structure(
@@ -262,8 +242,10 @@ def neurons_per_structure(
         subject_responsive = sum([data_obj["responsive_units"][rec_name][event] for event in events], [])
         subject_responsive = pd.Series(subject_responsive).unique()
 
-        df = pd.read_csv(os.path.join(folder, "cluster_info_good.csv"), index_col="cluster_id")
-        df = df.loc[subject_responsive, "Structure"].value_counts()
+        df = pd.read_csv(os.path.join(folder, "cluster_info.tsv"), sep="\t", index_col="cluster_id")
+        df = df[df["group"] == "good"]
+        valid = df.index.intersection(subject_responsive)
+        df = df.loc[valid, "Structure"].value_counts()
 
         per_structure.append(df)
 

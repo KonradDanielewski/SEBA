@@ -4,7 +4,6 @@
 
 import pickle
 import os
-from itertools import chain
 
 import numpy as np
 import pandas as pd
@@ -107,7 +106,7 @@ def add_to_data_structure(
     if isinstance(data_obj, str):
         data_obj = pd.read_pickle(data_obj)
 
-    if data_obj.get(new_key) == None:
+    if data_obj.get(new_key) is None:
         data_obj[new_key] = data_to_add
     else:
         print(f"Key {new_key} already exists in data obj")
@@ -216,7 +215,7 @@ def append_event_to_binary(
     """
     if event_filepath.endswith(".csv"):
         event = pd.read_csv(event_filepath, header=None).values.reshape(-1)
-    if event_filepath.endswith(".tsv") or event_filepath.endswith(".txt"):
+    elif event_filepath.endswith(".tsv") or event_filepath.endswith(".txt"):
         event = pd.read_csv(event_filepath, header=None, sep="\t").values.reshape(-1)
     else:
         print(f"File extensions not handled. '.csv', '.tsv' and '.txt' are supported but {os.path.basename(event_filepath).split('.')[-1]} was passed")
@@ -246,26 +245,54 @@ def append_event_to_binary(
 
 
 def responsive_neurons2events(data_folder: str | list, data_obj: dict):
-    """Assigns 1 to neuron ids in cluster_info_good.csv that were significantly responsive to event
+    """Assigns 1 to neuron ids in cluster_info.tsv that were significantly responsive to an event.
 
     Args:
         data_folder: path to a folder containing all ephys data folders or list of those folders
         data_obj: output of structurize_data. Stored in ephys_data.pickle
     Returns:
-        Overwrites existing cluster_info_good.csv with a new one containing bool columns of events with True assigned to responsive neurons
+        Overwrites cluster_info.tsv with event columns added, where 1 marks responsive neurons.
     """
     data_folder = auxiliary.check_data_folder(data_folder)
     rec_names = data_obj["recording_names"]
     events = data_obj["event_names"]
 
     for folder, rec_name in zip(data_folder, rec_names):
-        df = pd.read_csv(os.path.join(folder, "cluster_info_good.csv"), index_col="cluster_id")
+        tsv_path = os.path.join(folder, "cluster_info.tsv")
+        df = pd.read_csv(tsv_path, sep="\t", index_col="cluster_id")
         for event in events:
             df[event] = np.nan
-            if data_obj["responsive_units"][rec_name][event] == None:
+            responsive = data_obj["responsive_units"][rec_name][event]
+            if not responsive:
                 continue
-            df.loc[data_obj["responsive_units"][rec_name][event], event] = 1
-        df.to_csv(os.path.join(folder, "cluster_info_good.csv"))
+            valid_ids = [uid for uid in responsive if uid in df.index]
+            df.loc[valid_ids, event] = 1
+        df.to_csv(tsv_path, sep="\t")
+
+
+def concat_with_keys(
+    dataframes: dict[str, pd.DataFrame],
+    index_names: list[str] | None = None,
+) -> pd.DataFrame:
+    """Concatenates DataFrames into one with a MultiIndex identifying the source DataFrame.
+
+    Args:
+        dataframes: dict mapping a label (e.g. recording name) to its DataFrame
+        index_names: optional names for the two MultiIndex levels;
+                     defaults to ["source", original index name or "index"]
+
+    Returns:
+        Single DataFrame with a two-level MultiIndex (label, original_index)
+
+    Example:
+        combined = concat_with_keys({"rec1": df1, "rec2": df2})
+        combined.loc["rec1"]  # returns df1's rows
+    """
+    combined = pd.concat(dataframes, names=index_names)
+    if index_names is None:
+        original_name = next(iter(dataframes.values())).index.name or "index"
+        combined.index.names = ["source", original_name]
+    return combined
 
 
 def add_brain_regions(data_folder: str | list, data_obj: dict):
@@ -274,6 +301,7 @@ def add_brain_regions(data_folder: str | list, data_obj: dict):
     rec_names = data_obj["recording_names"]
 
     for folder, rec_name in zip(data_folder, rec_names):
-        df = pd.read_csv(os.path.join(folder, "cluster_info_good.csv"), index_col="cluster_id")
+        df = pd.read_csv(os.path.join(folder, "cluster_info.tsv"), sep="\t", index_col="cluster_id")
+        df = df[df["group"] == "good"]
 
         data_obj["brain_regions"][rec_name] = pd.Series(df.loc[:, "Structure"])

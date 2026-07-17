@@ -5,7 +5,7 @@
 from seba.data.analysis import (
     structurize_data,
     neurons_per_structure,
-    responsive_units_wilcoxon,
+    responsive_units_zscore,
 )
 from seba.data.behavior_io import (
     read_bvs,

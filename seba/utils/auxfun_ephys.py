@@ -26,7 +26,7 @@ def read_spikes(
     """
     spks = np.load(os.path.join(spks_dir, "spike_times.npy"))
     clst = np.load(os.path.join(spks_dir, "spike_clusters.npy"))
-    clst_group = pd.read_csv(os.path.join(spks_dir, "cluster_group.tsv"), sep="\t")
+    clst_group = pd.read_csv(os.path.join(spks_dir, "cluster_info.tsv"), sep="\t")
 
     units_id = np.array(clst_group.cluster_id[clst_group.KSLabel == read_only])  # those clusters contain selected type of units
     spks = 1 / sampling_rate * spks  # convert sample numbers to time stamps

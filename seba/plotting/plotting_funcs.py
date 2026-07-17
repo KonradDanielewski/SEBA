@@ -1,81 +1,128 @@
 """
 @author: K. Danielewski
+
+Publication-ready Plotly plotting functions for SEBA.
+All figures are saved as SVG by default.
+
+Requires: plotly, kaleido  (pip install plotly kaleido)
 """
 
 import os
-from itertools import combinations_with_replacement
 
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import seaborn as sns
+from plotly.subplots import make_subplots
+import plotly.graph_objects as go
+from scipy.stats import linregress, t as t_dist
 
-from seba.utils import (
-    auxiliary,
-    auxfun_plotting,
+from seba.plotting import plot_data
+from seba.utils import auxiliary
+
+
+# ---------------------------------------------------------------------------
+# Publication-ready style defaults
+# ---------------------------------------------------------------------------
+
+_FONT = dict(family="Arial", size=14, color="black")
+
+_AXIS = dict(
+    showline=True,
+    linewidth=1.5,
+    linecolor="black",
+    mirror=True,
+    ticks="outside",
+    tickwidth=1.5,
+    tickfont=dict(family="Arial", size=12),
+    showgrid=False,
+    zeroline=False,
 )
 
+_LAYOUT = dict(
+    font=_FONT,
+    plot_bgcolor="white",
+    paper_bgcolor="white",
+    margin=dict(l=70, r=40, t=60, b=70),
+)
 
-def plot_common_nrns_matrix(
-    data_obj: dict,
-    save_path: str,
-    per_recording: bool = False,
-    percent_all_neurons: bool = True,
-    colormap: str = "inferno",
-):
-    """Function creating matrix plot of a perctage of common responsive neurons between pairs of events
+# Colorblind-safe palette (Wong 2011)
+_COLORS = ["#0072B2", "#E69F00", "#009E73", "#CC79A7", "#56B4E9", "#D55E00", "#F0E442"]
 
-    Args:
-        data_obj: output of structurize_data. Stored in ephys_data.pickle
-        save_path: path to which the plots will be saved. Additional subfolders will be created on per-recording basis
-        per_recording: Toggles if the regression is done and plotted for all recorded neurons or on per-recording basis. Defaults to False.
-        percent_all_neurons: Toggles whether to show values as percentage of all neurons or percentage of responsive neurons. Defaults to True.
-    Returns:
-        Saves a matrix of the amount of common responsive neurons across event pairs
-    """
-    rec_names = data_obj["recording_names"]
-    events = data_obj["event_names"]
 
-    if per_recording:
-        for rec_name in rec_names:
-            df = pd.DataFrame(np.nan, index=events, columns=events)
-            for event1, event2 in combinations_with_replacement(events, 2):
-                if (
-                    data_obj["responsive_units"][rec_name][event1] is None
-                    or data_obj["responsive_units"][rec_name][event2] is None
-                ):
-                    continue
-                df.loc[event2, event1] = len(
-                    np.intersect1d(data_obj["responsive_units"][rec_name][event1], data_obj["responsive_units"][rec_name][event2])
-                )
+def _save(fig: go.Figure, path: str, filename: str) -> None:
+    """Write figure as SVG to path/filename.png."""
+    fig.write_image(os.path.join(path, f"{filename}.svg"))
 
-            if percent_all_neurons:
-                nrns = len(data_obj["unit_ids"][rec_name])
-                df = df / nrns * 100
 
-            auxfun_plotting.make_common_matrix(df, save_path, colormap=colormap, per_recording=per_recording, rec_name=rec_name)
-    else:
-        df = pd.DataFrame(0, index=events, columns=events)
+# ---------------------------------------------------------------------------
+# PST plots
+# ---------------------------------------------------------------------------
 
-        for rec_name in rec_names:
-            for event1, event2 in combinations_with_replacement(events, 2):
-                if (
-                    data_obj["responsive_units"][rec_name][event1] is None
-                    or data_obj["responsive_units"][rec_name][event2] is None
-                ):
-                    continue
-                count = len(
-                    np.intersect1d(data_obj["responsive_units"][rec_name][event1], data_obj["responsive_units"][rec_name][event2])
-                )
-                df.loc[event2, event1] += count
+def _make_psth_figure(
+    spike_trains: list,
+    col_axis: np.ndarray,
+    mean: np.ndarray,
+    sem: np.ndarray,
+    y_axis: str,
+    title: str,
+    ylimit: list[float, float],
+) -> go.Figure:
+    """Build a two-panel (raster / PSTH) Plotly figure for one unit."""
+    fig = make_subplots(
+        rows=2, cols=1,
+        shared_xaxes=True,
+        vertical_spacing=0.06,
+        row_heights=[0.4, 0.6],
+    )
 
-        if percent_all_neurons:
-            nrns = []
-            for rec_name in rec_names:
-                nrns.append(len(data_obj["unit_ids"][rec_name]))
-            df = df / sum(nrns) * 100
+    # --- Raster ---
+    x_rast, y_rast = [], []
+    for trial_idx, train in enumerate(spike_trains):
+        x_rast.extend(train.tolist())
+        y_rast.extend([trial_idx] * len(train))
 
-        auxfun_plotting.make_common_matrix(df, save_path, colormap=colormap, per_recording=per_recording)
+    fig.add_trace(go.Scatter(
+        x=x_rast, y=y_rast,
+        mode="markers",
+        marker=dict(symbol="line-ns-open", size=7, line=dict(width=1, color="black")),
+        showlegend=False,
+    ), row=1, col=1)
+
+    # --- PSTH (mean ± SEM shaded band) ---
+    fig.add_trace(go.Scatter(
+        x=col_axis, y=mean + sem,
+        mode="lines", line=dict(width=0), showlegend=False,
+    ), row=2, col=1)
+    fig.add_trace(go.Scatter(
+        x=col_axis, y=mean - sem,
+        mode="lines", line=dict(width=0),
+        fill="tonexty", fillcolor="rgba(0,114,178,0.20)",
+        showlegend=False,
+    ), row=2, col=1)
+    fig.add_trace(go.Scatter(
+        x=col_axis, y=mean,
+        mode="lines", line=dict(color=_COLORS[0], width=2),
+        showlegend=False,
+    ), row=2, col=1)
+
+    # Event-onset lines (one shape per row via paper y-coordinates)
+    for row_frac_y0, row_frac_y1 in [(0.44, 1.0), (0.0, 0.38)]:
+        fig.add_shape(
+            type="line", x0=0, x1=0,
+            y0=row_frac_y0, y1=row_frac_y1, yref="paper", xref="x",
+            line=dict(color="black", width=1, dash="dash"),
+        )
+
+    fig.update_layout(
+        title=dict(text=title, font=_FONT),
+        **_LAYOUT,
+    )
+    fig.update_xaxes(**_AXIS)
+    fig.update_yaxes(**_AXIS)
+    fig.update_yaxes(title_text="Trial #", row=1, col=1)
+    fig.update_yaxes(title_text=y_axis, range=ylimit, row=2, col=1)
+    fig.update_xaxes(title_text="Time (s)", row=2, col=1)
+
+    return fig
 
 
 def plot_psths(
@@ -84,72 +131,43 @@ def plot_psths(
     responsive_only: bool = False,
     z_score: bool = True,
     ylimit: list[float, float] = [-1, 2.5],
-):
-    """Function used for plotting psths using either z-score or raw firing rate
+) -> None:
+    """Plot per-unit raster + PSTH for each event.
 
     Args:
-        data_obj: output of structurize_data function. Object containing ephys data structure
-        save_path: path to which the plots will be saved. Additional subfolders will be created on per-recording basis
-        responsive_only: Toggles whether to plot for all recorded cells or only the ones deemed significantly responsive. Defaults to False
-        z_score: if to use z-score or raw firing rate. Defaults to True.
-        ylimit: y_axis limit, first value is lower, second is upper bound. Defaults to [-1, 2.5].
+        data_obj: output of structurize_data
+        save_path: root save directory; per-recording and per-event subfolders are created
+        responsive_only: plot only responsive units when True. Currently always uses responsive units
+            (non-responsive units have no raster data). Kept for API compatibility.
+        z_score: use z-score when True, raw firing rate when False
+        ylimit: [lower, upper] y-axis limit for the PSTH panel
     Returns:
-        Saves plots to set location, creating subfolders on per-recording basis. Each plot is named using event name and neuron ID
+        SVG files saved under save_path/<rec_name>/<event>/
     """
-    sns.set_palette("colorblind")
-
-    pre_event = data_obj["bin_params"]["pre_event"]
-    post_event = data_obj["bin_params"]["post_event"]
-    bin_size = data_obj["bin_params"]["bin_size"]
-
     rec_names = data_obj["recording_names"]
     events = data_obj["event_names"]
 
-    unit_ids = data_obj["unit_ids"]
-    responsive_ids = data_obj["responsive_units"]
-
     for event in events:
-        y_axis, subject = auxfun_plotting.load_dict(
-            which="all_rats",
-            z_score=z_score,
-            data_obj=data_obj,
-            event=event,
-            single=True,
-        )
         for rec_name in rec_names:
-            if subject[rec_name] is None:
+            if data_obj["centered_spike_timestamps"][event][rec_name] is None:
                 continue
-            if data_obj["responsive_units"][rec_name][event] is None:
+
+            units_to_plot = (
+                plot_data._responsive_ids(data_obj, rec_name, event)
+                if responsive_only
+                else list(data_obj["unit_ids"][rec_name])
+            )
+            if not units_to_plot:
                 continue
-            save_here = auxiliary.make_dir_save(save_path, rec_name)
 
-            for idx, unit_id in enumerate(responsive_ids[rec_name][event]):
-                # Prepare data for proper axes
-                col_axis = np.around(np.arange(-abs(pre_event), post_event, bin_size), 2)
-                df0 = pd.DataFrame(subject[rec_name][idx]).set_axis(col_axis, axis=1)
-                df0 = df0.melt(var_name="Seconds", value_name=y_axis, ignore_index=False)
+            save_here = auxiliary.make_dir_save(auxiliary.make_dir_save(save_path, rec_name), event)
 
-                # Build figure
-                fig, axes = plt.subplots(nrows=2, ncols=1, figsize=(8, 8), sharex=True)
-                axes = axes.flatten()
-
-                axes[0].eventplot(
-                    data_obj["centered_spike_timestamps"][event][rec_name][idx],
-                    linelengths=0.7,
+            for unit_id in units_to_plot:
+                spike_trains, col_axis, mean, sem, y_axis = plot_data.get_psth_unit_data(
+                    data_obj, event, rec_name, unit_id, z_score
                 )
-                sns.lineplot(df0, ax=axes[1], x="Seconds", y=y_axis, errorbar="se")
-
-                # Plottting params
-                axes[0].set_ylabel("Trial #", fontsize=14)
-                axes[0].set_title(event)
-                axes[1].set_xlabel("Seconds", fontsize=14)
-                axes[1].set_ylabel(y_axis, fontsize=14)
-                axes[1].set_ylim([ylimit[0], ylimit[1]])
-
-                save = auxiliary.make_dir_save(save_here, event)
-
-                fig.savefig(os.path.join(save, f"{event}_psth_{str(unit_id)}.png"), dpi=100, bbox_inches="tight")
-                plt.close(fig)
+                fig = _make_psth_figure(spike_trains, col_axis, mean, sem, y_axis, event, ylimit)
+                _save(fig, save_here, f"{event}_psth_{unit_id}")
 
 
 def plot_psths_paired(
@@ -159,93 +177,85 @@ def plot_psths_paired(
     responsive_only: bool = False,
     z_score: bool = True,
     ylimit: list[float, float] = [-1, 2.5],
-):
-    """Function used for plotting psths using either z-score or raw firing rate
+) -> None:
+    """Plot overlaid PSTHs for a pair of events (e.g. subject vs partner) per unit.
 
     Args:
-        data_obj: output of structurize_data function. Object containing ephys data structure
-        event_pair: list of two keys to plot together, assumes [subject, partner] order e.g., ["freezing_subject", "freezing_partner"]
-        save_path: path to which the plots will be saved. Additional subfolders will be created on per-recording basis
-        responsive_only: Toggles whether to plot for all recorded cells or only the ones deemed significantly responsive. Defaults to False
-        z_score: if to use z-score or raw firing rate. Defaults to True.
-        ylimit: y_axis limit, first value is lower, second is upper bound. Defaults to [-1, 2.5].
+        data_obj: output of structurize_data
+        event_pair: [subject_event, partner_event]
+        save_path: root save directory
+        responsive_only: restrict to units responsive to either event
+        z_score: use z-score when True, raw firing rate when False
+        ylimit: [lower, upper] y-axis limit
     Returns:
-        Saves plots to set location, creating subfolders on per-recording basis. Each plot is named using event name and neuron ID
+        SVG files saved under save_path/<rec_name>/<event_pair>/
     """
-    sns.set_palette("colorblind")
-
-    pre_event = data_obj["bin_params"]["pre_event"]
-    post_event = data_obj["bin_params"]["post_event"]
-    bin_size = data_obj["bin_params"]["bin_size"]
-    unit_ids = data_obj["unit_ids"]
     rec_names = data_obj["recording_names"]
-    responsive_ids = data_obj["responsive_units"]
-
-    filename = event_pair[0] + "_" + event_pair[1]
-
-    y_axis, subjects, partners = auxfun_plotting.load_dict(
-        which="all_rats",
-        z_score=z_score,
-        data_obj=data_obj,
-        event_pair=event_pair,
-        single=False,
-    )
+    filename = f"{event_pair[0]}_{event_pair[1]}"
 
     for rec_name in rec_names:
-        save_here = auxiliary.make_dir_save(save_path, rec_name)
+        if (
+            data_obj["centered_spike_timestamps"][event_pair[0]][rec_name] is None
+            or data_obj["centered_spike_timestamps"][event_pair[1]][rec_name] is None
+        ):
+            continue
+
+        save_here = auxiliary.make_dir_save(auxiliary.make_dir_save(save_path, rec_name), filename)
+
         if responsive_only:
-            responsive_cells = list(
-                set(
-                    responsive_ids[rec_name][event_pair[0]]
-                    + responsive_ids[rec_name][event_pair[1]]
-                )
+            units_to_plot = list(set(
+                plot_data._responsive_ids(data_obj, rec_name, event_pair[0])
+                + plot_data._responsive_ids(data_obj, rec_name, event_pair[1])
+            ))
+        else:
+            units_to_plot = list(data_obj["unit_ids"][rec_name])
+
+        for unit_id in units_to_plot:
+            col_axis, mean_sub, sem_sub, mean_par, sem_par, y_axis = plot_data.get_paired_psth_unit_data(
+                data_obj, event_pair, rec_name, unit_id, z_score
             )
 
-        for idx, unit_id in enumerate(unit_ids[rec_name]):
-            if responsive_only and unit_id not in responsive_cells:
-                continue
+            fig = go.Figure()
 
-            if subjects[rec_name] is None or partners[rec_name] is None:
-                continue
+            for mean, sem, label, color in [
+                (mean_sub, sem_sub, event_pair[0], _COLORS[0]),
+                (mean_par, sem_par, event_pair[1], _COLORS[1]),
+            ]:
+                rgba_fill = f"rgba({int(color[1:3], 16)},{int(color[3:5], 16)},{int(color[5:7], 16)},0.20)"
+                fig.add_trace(go.Scatter(
+                    x=col_axis, y=mean + sem,
+                    mode="lines", line=dict(width=0), showlegend=False,
+                ))
+                fig.add_trace(go.Scatter(
+                    x=col_axis, y=mean - sem,
+                    mode="lines", line=dict(width=0),
+                    fill="tonexty", fillcolor=rgba_fill,
+                    showlegend=False,
+                ))
+                fig.add_trace(go.Scatter(
+                    x=col_axis, y=mean,
+                    mode="lines", line=dict(color=color, width=2),
+                    name=label,
+                ))
 
-            # Prepare data for proper axes
-            col_axis = np.around(np.arange(-abs(pre_event), post_event, bin_size), 2)
-            df0 = pd.DataFrame(subjects[rec_name][idx]).set_axis(col_axis, axis=1)
-            df1 = pd.DataFrame(partners[rec_name][idx]).set_axis(col_axis, axis=1)
-            df0 = df0.melt(var_name="Seconds", value_name=y_axis, ignore_index=False)
-            df1 = df1.melt(var_name="Seconds", value_name=y_axis, ignore_index=False)
-
-            # Build figure
-            fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(8, 6), sharey=True)
-
-            sns.lineplot(
-                df0,
-                ax=ax,
-                x="Seconds",
-                y=y_axis,
-                errorbar="se",
-                label=f"{event_pair[0]}",
+            fig.add_vline(x=0, line_width=1, line_dash="dash", line_color="black")
+            fig.update_layout(
+                title=dict(text=filename.replace("_", " ").capitalize(), font=_FONT),
+                xaxis_title="Time (s)",
+                yaxis_title=y_axis,
+                yaxis_range=ylimit,
+                legend=dict(x=0.02, y=0.98, bgcolor="rgba(255,255,255,0.8)", bordercolor="black", borderwidth=1),
+                **_LAYOUT,
             )
-            sns.lineplot(
-                df1,
-                ax=ax,
-                x="Seconds",
-                y=y_axis,
-                errorbar="se",
-                label=f"{event_pair[1]}",
-            )
+            fig.update_xaxes(**_AXIS)
+            fig.update_yaxes(**_AXIS)
 
-            # Plottting params
-            ax.set_title(filename.capitalize())
-            ax.set_xlabel("Seconds")
-            ax.set_ylabel(y_axis)
-            ax.set_ylim([ylimit[0], ylimit[1]])
+            _save(fig, save_here, f"{filename}_psth_{unit_id}")
 
-            save = auxiliary.make_dir_save(save_here, filename)
 
-            fig.savefig(os.path.join(save, f"{filename}_psth_{str(unit_id)}.png"), dpi=100, bbox_inches="tight")
-            plt.close(fig)
-
+# ---------------------------------------------------------------------------
+# Regression scatter
+# ---------------------------------------------------------------------------
 
 def plot_lin_reg_scatter(
     data_obj: dict,
@@ -255,94 +265,153 @@ def plot_lin_reg_scatter(
     responsive_only: bool = False,
     ax_limit: list[float, float] = [-4, 4],
     z_score: bool = True,
-):
-    """Creates scatter plots with regression results showing linear relationship between neuron
-    responses to subjects' and partners' events
+) -> None:
+    """Scatter plot with linear regression line and 95 % CI for a paired event.
 
     Args:
-        data_obj: output of structurize_data function. Object containing ephys data structure
-        event_pair: list of two keys to plot together, assumes [subject, partner] order e.g., ["freezing_subject", "freezing_partner"]
-        save_path: path to which the plots will be saved. Additional subfolders will be created on per-recording basis
-        responsive_only: Toggles whether to plot for all recorded cells or only the ones deemed significantly responsive. Defaults to False
-        per_recording: Toggles if the regression is done and plotted for all recorded neurons
-            or on per-recording basis. Defaults to False.
-        ax_limit: axes limits, assumes 0 centered, even per axis. First value is x axis, second is y axis. Defaults to [-4, 4].
-        z_score: required for compatibility. Always True
+        data_obj: output of structurize_data
+        event_pair: [subject_event, partner_event]
+        save_path: root save directory
+        per_recording: one plot per recording when True, combined otherwise
+        responsive_only: restrict to responsive units
+        ax_limit: [min, max] for both axes
+        z_score: always True (kept for API compatibility)
     Returns:
-        Saves a scatter plot to a desired location with results of linear regression containing slope, r-value and p-value of the fit.
+        SVG file(s) saved to save_path
     """
-    filename = event_pair[0] + "_" + event_pair[1]
-    rec_names = data_obj["recording_names"]
+    filename = f"{event_pair[0]}_{event_pair[1]}"
+    datasets = plot_data.get_lin_reg_data(data_obj, event_pair, per_recording, responsive_only, z_score)
 
-    subjects, partners = auxfun_plotting.load_dict(
-        which="mean_per_rat",
-        z_score=z_score,
-        data_obj=data_obj,
-        event_pair=event_pair,
-        single=False,
-    )[1:3]  # y_axis not used
+    for df, rec_name in datasets:
+        x = df["subject"].values
+        y = df["partner"].values
+        result = linregress(x, y)
 
-    if per_recording:
-        for rec_name in rec_names:
-            subject = subjects[rec_name].dropna().mean(axis=1).rename("subject")
-            partner = partners[rec_name].dropna().mean(axis=1).rename("partner")
+        x_fit = np.linspace(ax_limit[0], ax_limit[1], 300)
+        y_fit = result.slope * x_fit + result.intercept
 
-            if len(subject) == 0 or len(partner) == 0:
-                continue
+        # 95 % confidence band
+        n = len(x)
+        x_mean = x.mean()
+        s_res = np.sqrt(((y - (result.slope * x + result.intercept)) ** 2).sum() / (n - 2))
+        t_crit = t_dist.ppf(0.975, n - 2)
+        ci = t_crit * s_res * np.sqrt(1 / n + (x_fit - x_mean) ** 2 / ((x - x_mean) ** 2).sum())
 
-            if responsive_only:
-                responsive_units = np.unique(
-                    data_obj["responsive_units"][rec_name][event_pair[0]]
-                    + data_obj["responsive_units"][rec_name][event_pair[1]]
-                )
-                subject = subject.loc[responsive_units]
-                partner = partner.loc[responsive_units]
+        fig = go.Figure()
 
-            df = pd.concat([subject, partner], axis=1)
-            # Make plots
-            save_here = auxiliary.make_dir_save(save_path, rec_name)
-            auxfun_plotting.make_paired_scatter(
-                df=df,
-                filename=filename,
-                event_pair=event_pair,
-                ax_limit=ax_limit,
-                save_path=save_here,
-                )
+        # CI band
+        fig.add_trace(go.Scatter(
+            x=x_fit, y=y_fit + ci,
+            mode="lines", line=dict(width=0), showlegend=False,
+        ))
+        fig.add_trace(go.Scatter(
+            x=x_fit, y=y_fit - ci,
+            mode="lines", line=dict(width=0),
+            fill="tonexty", fillcolor="rgba(214,94,0,0.20)",
+            showlegend=False,
+        ))
+        # Regression line
+        fig.add_trace(go.Scatter(
+            x=x_fit, y=y_fit,
+            mode="lines", line=dict(color="#D55E00", width=2),
+            name="fit",
+        ))
+        # Data points
+        fig.add_trace(go.Scatter(
+            x=x, y=y,
+            mode="markers",
+            marker=dict(color=_COLORS[0], size=6, opacity=0.7),
+            name="units",
+        ))
 
-    else:
-        sub_combined = []
-        par_combined = []
+        # Reference lines
+        for val in [0]:
+            fig.add_hline(y=val, line_width=1, line_dash="dash", line_color="black", opacity=0.5)
+            fig.add_vline(x=val, line_width=1, line_dash="dash", line_color="black", opacity=0.5)
 
-        for rec_name in rec_names:
-            subject = subjects[rec_name].dropna().mean(axis=1).rename("subject")
-            partner = partners[rec_name].dropna().mean(axis=1).rename("partner")
+        stats_text = (
+            f"slope = {result.slope:.2f}<br>"
+            f"r = {result.rvalue:.2f}<br>"
+            f"p = {result.pvalue:.3g}"
+        )
+        fig.add_annotation(
+            x=ax_limit[0] + 0.15 * (ax_limit[1] - ax_limit[0]),
+            y=ax_limit[1] - 0.1 * (ax_limit[1] - ax_limit[0]),
+            text=stats_text,
+            showarrow=False,
+            bgcolor="rgba(214,94,0,0.15)",
+            bordercolor="#D55E00",
+            borderwidth=1,
+            font=dict(family="Arial", size=11),
+            align="left",
+        )
 
-            if len(subject) == 0 or len(partner) == 0:
-                continue
+        title = filename.replace("_", " ").capitalize()
+        if rec_name:
+            title = f"{rec_name} — {title}"
+        fig.update_layout(
+            title=dict(text=title, font=_FONT),
+            xaxis_title=event_pair[0],
+            yaxis_title=event_pair[1],
+            xaxis_range=ax_limit,
+            yaxis_range=ax_limit,
+            legend=dict(x=0.82, y=0.05, bgcolor="rgba(255,255,255,0.8)", bordercolor="black", borderwidth=1),
+            **_LAYOUT,
+        )
+        fig.update_xaxes(**_AXIS)
+        fig.update_yaxes(**_AXIS)
 
-            if responsive_only:
-                responsive_units = np.unique(
-                    data_obj["responsive_units"][rec_name][event_pair[0]]
-                    + data_obj["responsive_units"][rec_name][event_pair[1]]
-                )
-                subject = subject.loc[responsive_units]
-                partner = partner.loc[responsive_units]
+        dest = auxiliary.make_dir_save(save_path, rec_name) if rec_name else save_path
+        _save(fig, dest, f"{filename}_reg_plot")
 
-            sub_combined.append(subject)
-            par_combined.append(partner)
 
-        subject = pd.concat(sub_combined).reset_index(drop=True)
-        partner = pd.concat(par_combined).reset_index(drop=True)
-        df = pd.concat([subject, partner], axis=1)
+# ---------------------------------------------------------------------------
+# Heatmaps
+# ---------------------------------------------------------------------------
 
-        # Make plots
-        auxfun_plotting.make_paired_scatter(
-                df=df,
-                filename=filename,
-                event_pair=event_pair,
-                ax_limit=ax_limit,
-                save_path=save_path,
-            )
+def _make_heatmap_figure(
+    df: pd.DataFrame,
+    col_axis: np.ndarray,
+    onset_col_idx: int,
+    y_axis: str,
+    title: str,
+    colormap: str,
+) -> go.Figure:
+    """Build a single heatmap figure."""
+    # Map column ticks: show every ~500 ms
+    step = max(1, len(col_axis) // 10)
+    tick_vals = list(range(0, len(col_axis), step))
+    tick_text = [f"{col_axis[i]:.1f}" for i in tick_vals]
+
+    fig = go.Figure(go.Heatmap(
+        z=df.values,
+        colorscale=colormap,
+        zmid=0,
+        zmin=-3,
+        zmax=3,
+        colorbar=dict(title=dict(text=y_axis, side="right"), thickness=15),
+        x=list(range(len(col_axis))),
+        showscale=True,
+    ))
+
+    # Onset line
+    fig.add_shape(
+        type="line", x0=onset_col_idx, x1=onset_col_idx,
+        y0=0, y1=1, yref="paper",
+        line=dict(color="white", width=1.5, dash="dash"),
+    )
+
+    fig.update_layout(
+        title=dict(text=title, font=_FONT),
+        xaxis=dict(
+            tickmode="array", tickvals=tick_vals, ticktext=tick_text,
+            title="Time (s)", **_AXIS,
+        ),
+        yaxis=dict(title="Neurons", **_AXIS),
+        **_LAYOUT,
+    )
+
+    return fig
 
 
 def plot_heatmaps(
@@ -350,127 +419,29 @@ def plot_heatmaps(
     save_path: str,
     per_recording: bool = False,
     responsive_only: bool = False,
-    colormap: str = "inferno",
+    colormap: str = "RdBu_r",
     z_score: bool = True,
-    x_tick: int = 50,
-    y_tick: int = 25,
-):
-    """Plots paired heatmaps for sorted neurons comparison (how the same neuron responed to self and parters' event)
+) -> None:
+    """Plot single-event heatmaps of neural activity, sorted by post-onset mean.
 
     Args:
-        data_obj: output of structurize_data function. Object containing ephys data structure
-        save_path: path to which the plots will be saved. Additional subfolders will be created on per-recording basis
-        per_recording: Toggles if the regression is done and plotted for all recorded neurons
-            or on per-recording basis. Defaults to False.
-        responsive_only: Toggles whether to plot for all recorded cells or only the ones deemed significantly responsive. Defaults to False
-        colormap: matplotlib colormap used for heatmap plotting. Defaults to "viridis".
-        z_score: required for compatibility. Always True
+        data_obj: output of structurize_data
+        save_path: root save directory
+        per_recording: one plot per recording when True
+        responsive_only: show only responsive units
+        colormap: Plotly colorscale name
+        z_score: use z-score (always True; kept for compatibility)
     Returns:
-        Saves figures to desired location. If per-recording makes/uses folders with recording name
+        SVG file(s) saved to save_path
     """
-    pre_event = data_obj["bin_params"]["pre_event"]
-    post_event = data_obj["bin_params"]["post_event"]
-    bin_size = data_obj["bin_params"]["bin_size"]
-
-    rec_names = data_obj["recording_names"]
     events = data_obj["event_names"]
 
-    onset_col_idx = int(pre_event / bin_size)
-
     for event in events:
-        if per_recording == False:
-            col_axis = np.around(np.arange(-abs(pre_event), post_event, bin_size), 2)
-            if responsive_only:
-                y_axis, subjects = auxfun_plotting.load_dict(
-                    which="all_rats",
-                    z_score=z_score,
-                    data_obj=data_obj,
-                    event=event,
-                    single=True,
-                )
-
-                responsive_subject = []
-
-                for rec_name in rec_names:
-                    if subjects[rec_name] is None:
-                        continue
-                    responsive_units = data_obj["responsive_units"][rec_name][event]
-                    if len(responsive_units) == 0:
-                        continue
-                    temp_subject = [i.mean(axis=0) for i in subjects[rec_name]]
-
-                    df_subs = pd.DataFrame(temp_subject, index=data_obj["unit_ids"][rec_name]).loc[responsive_units]
-                    responsive_subject.append(df_subs)
-
-                subjects = pd.concat(responsive_subject)
-                subject = (subjects.reset_index(drop=True).set_axis(col_axis, axis=1).copy())
-            else:
-                y_axis, subject = auxfun_plotting.load_dict(
-                    which="mean_all_rats",
-                    z_score=z_score,
-                    data_obj=data_obj,
-                    event=event,
-                    single=True,
-                )
-
-            auxfun_plotting.make_heatmap(
-                subject=subject,
-                onset_col_idx=onset_col_idx,
-                colormap=colormap,
-                y_axis=y_axis,
-                filename=event,
-                save_path=save_path,
-                xticklabel=x_tick,
-                yticklabel=y_tick,
-            )
-
-        if per_recording:
-            y_axis, subjects = auxfun_plotting.load_dict(
-                which="all_rats",
-                z_score=z_score,
-                data_obj=data_obj,
-                event=event,
-                single=True,
-            )
-            col_axis = np.around(np.arange(-abs(pre_event), post_event, bin_size), 2)
-
-            for rec_name in rec_names:
-
-                save_here = auxiliary.make_dir_save(save_path, rec_name)
-
-                if responsive_only:
-                    responsive_units = data_obj["responsive_units"][rec_name][event]
-                    if subjects[rec_name] is None:
-                        continue
-                    if len(responsive_units) == 0:
-                        continue
-                    subject = pd.DataFrame(np.array(subjects[rec_name]).mean(axis=1), index=data_obj["unit_ids"][rec_name], columns=col_axis).loc[responsive_units]
-                    auxfun_plotting.make_heatmap(
-                        subject=subject,
-                        onset_col_idx=onset_col_idx,
-                        colormap=colormap,
-                        y_axis=y_axis,
-                        filename=event,
-                        save_path=save_here,
-                        xticklabel=x_tick,
-                        yticklabel=y_tick,
-                    )
-                else:
-                    if subjects[rec_name] is None:
-                        continue
-                    subject = pd.DataFrame(np.array(subjects[rec_name]).mean(axis=1), columns=col_axis)
-                    if subject is None:
-                        continue
-                    auxfun_plotting.make_heatmap(
-                        subject=subject,
-                        onset_col_idx=onset_col_idx,
-                        colormap=colormap,
-                        y_axis=y_axis,
-                        filename=event,
-                        save_path=save_here,
-                        xticklabel=x_tick,
-                        yticklabel=y_tick,
-                    )
+        datasets = plot_data.get_heatmap_data(data_obj, event, per_recording, responsive_only, z_score)
+        for df, col_axis, onset_col_idx, y_axis, rec_name in datasets:
+            fig = _make_heatmap_figure(df, col_axis, onset_col_idx, y_axis, event, colormap)
+            dest = auxiliary.make_dir_save(save_path, rec_name) if rec_name else save_path
+            _save(fig, dest, f"{event}_heatmap")
 
 
 def plot_heatmaps_paired(
@@ -479,196 +450,168 @@ def plot_heatmaps_paired(
     save_path: str,
     per_recording: bool = False,
     responsive_only: bool = False,
-    colormap: str = "inferno",
+    colormap: str = "RdBu_r",
     z_score: bool = True,
-    x_tick: int = 50,
-    y_tick: int = 25,
-):
-    """Plots paired heatmaps for sorted neurons comparison (how the same neuron responed to self and parters' event)
+) -> None:
+    """Plot side-by-side heatmaps for a paired event, sorted by combined post-onset activity.
 
     Args:
-        data_obj: output of structurize_data function. Object containing ephys data structure
-        event_pair: list of two keys to plot together, assumes [subject, partner] order e.g., ["freezing_subject", "freezing_partner"]
-        save_path: path to which the plots will be saved. Additional subfolders will be created on per-recording basis
-        per_recording: Toggles if the regression is done and plotted for all recorded neurons
-            or on per-recording basis. Defaults to False.
-        responsive_only: Toggles whether to plot for all recorded cells or only the ones deemed significantly responsive. Defaults to False
-        colormap: matplotlib colormap used for heatmap plotting. Defaults to "viridis".
-        z_score: required for compatibility. Always True
+        data_obj: output of structurize_data
+        event_pair: [subject_event, partner_event]
+        save_path: root save directory
+        per_recording: one plot per recording when True
+        responsive_only: show only responsive units
+        colormap: Plotly colorscale name
+        z_score: use z-score (always True; kept for compatibility)
     Returns:
-        Saves figures to desired location. If per-recording makes/uses folders with recording name
+        SVG file(s) saved to save_path
     """
-    # TODO: Fix plotting firing rate (cmap min/max are hardcoded at the moment - makes no sense)
-    pre_event = data_obj["bin_params"]["pre_event"]
-    post_event = data_obj["bin_params"]["post_event"]
-    bin_size = data_obj["bin_params"]["bin_size"]
+    filename = f"{event_pair[0]}_{event_pair[1]}"
+    datasets = plot_data.get_paired_heatmap_data(data_obj, event_pair, per_recording, responsive_only, z_score)
 
-    onset_col_idx = int(pre_event / bin_size)
-    filename = event_pair[0] + "_" + event_pair[1]
+    for subj_df, part_df, col_axis, onset_col_idx, y_axis, rec_name in datasets:
+        step = max(1, len(col_axis) // 10)
+        tick_vals = list(range(0, len(col_axis), step))
+        tick_text = [f"{col_axis[i]:.1f}" for i in tick_vals]
 
-    if per_recording:
-        y_axis, subjects, partners = auxfun_plotting.load_dict(
-            which="all_rats",
-            z_score=z_score,
-            data_obj=data_obj,
-            event_pair=event_pair,
-            single=False,
+        fig = make_subplots(
+            rows=1, cols=2,
+            shared_yaxes=True,
+            horizontal_spacing=0.06,
+            subplot_titles=[event_pair[0], event_pair[1]],
         )
-        col_axis = np.around(np.arange(-abs(pre_event), post_event, bin_size), 2)
 
-        for rec_name in subjects.keys():
-            if subjects[rec_name] is None or partners[rec_name] is None:
-                continue
-            save_here = auxiliary.make_dir_save(save_path, rec_name)
-            if responsive_only:
-                if (
-                    data_obj["responsive_units"][rec_name][event_pair[0]] is None
-                    or data_obj["responsive_units"][rec_name][event_pair[1]] is None
-                ):
-                    continue
+        common_heatmap = dict(
+            colorscale=colormap,
+            zmid=0, zmin=-3, zmax=3,
+            x=list(range(len(col_axis))),
+            showscale=False,
+        )
 
-                responsive_units = np.unique(
-                    data_obj["responsive_units"][rec_name][event_pair[0]]
-                    + data_obj["responsive_units"][rec_name][event_pair[1]]
-                )
-                subject = pd.DataFrame(
-                    np.array(subjects[rec_name]).mean(axis=1),
-                    index=data_obj["unit_ids"][rec_name],
-                    columns=col_axis,
-                ).loc[responsive_units]
-                partner = pd.DataFrame(
-                    np.array(partners[rec_name]).mean(axis=1),
-                    index=data_obj["unit_ids"][rec_name],
-                    columns=col_axis,
-                ).loc[responsive_units]
+        fig.add_trace(go.Heatmap(z=subj_df.values, **common_heatmap), row=1, col=1)
+        fig.add_trace(go.Heatmap(
+            z=part_df.values,
+            **{**common_heatmap, "showscale": True,
+               "colorbar": dict(title=dict(text=y_axis, side="right"), thickness=15)},
+        ), row=1, col=2)
 
-                auxfun_plotting.make_paired_heatmap(
-                    subject=subject,
-                    partner=partner,
-                    event_pair=event_pair,
-                    onset_col_idx=onset_col_idx,
-                    colormap=colormap,
-                    y_axis=y_axis,
-                    filename=filename,
-                    save_path=save_here,
-                    xticklabel=x_tick,
-                    yticklabel=y_tick,
-                )
-            else:
-                subject = pd.DataFrame(np.array(subjects[rec_name]).mean(axis=1), columns=col_axis)
-                partner = pd.DataFrame(np.array(partners[rec_name]).mean(axis=1), columns=col_axis)
-
-                auxfun_plotting.make_paired_heatmap(
-                    subject=subject,
-                    partner=partner,
-                    event_pair=event_pair,
-                    onset_col_idx=onset_col_idx,
-                    colormap=colormap,
-                    y_axis=y_axis,
-                    filename=filename,
-                    save_path=save_here,
-                    xticklabel=x_tick,
-                    yticklabel=y_tick,
-                )
-    else:
-        col_axis = np.around(np.arange(-abs(pre_event), post_event, bin_size), 2)
-        if responsive_only:
-            y_axis, subjects, partners = auxfun_plotting.load_dict(
-                which="all_rats",
-                z_score=z_score,
-                data_obj=data_obj,
-                event_pair=event_pair,
-                single=False,
+        for col_num in [1, 2]:
+            fig.add_shape(
+                type="line", x0=onset_col_idx, x1=onset_col_idx,
+                y0=0, y1=1, yref="paper", xref=f"x{'' if col_num == 1 else col_num}",
+                line=dict(color="white", width=1.5, dash="dash"),
             )
 
-            responsive_subjects = []
-            responsive_partners = []
+        axis_opts = dict(tickmode="array", tickvals=tick_vals, ticktext=tick_text, **_AXIS)
+        fig.update_xaxes(title_text="Time (s)", **axis_opts)
+        fig.update_yaxes(title_text="Neurons", **_AXIS, col=1)
+        fig.update_layout(**_LAYOUT)
 
-            for rec_name in subjects:
-                if subjects[rec_name] is None or partners[rec_name] is None:
-                    continue
-                if (
-                    data_obj["responsive_units"][rec_name][event_pair[0]] is None
-                    or data_obj["responsive_units"][rec_name][event_pair[1]] is None
-                ):
-                    continue
-
-                responsive_units = np.unique(
-                    data_obj["responsive_units"][rec_name][event_pair[0]] 
-                    + data_obj["responsive_units"][rec_name][event_pair[1]]
-                    )
-
-                temp_subject = [i.mean(axis=0) for i in subjects[rec_name]]
-                temp_partner = [i.mean(axis=0) for i in partners[rec_name]]
-
-                df_subs = pd.DataFrame(temp_subject, index=data_obj["unit_ids"][rec_name]).loc[responsive_units]
-                df_partns = pd.DataFrame(temp_partner, index=data_obj["unit_ids"][rec_name]).loc[responsive_units]
-
-                responsive_subjects.append(df_subs)
-                responsive_partners.append(df_partns)
-
-            subjects = pd.concat(responsive_subjects)
-            partners = pd.concat(responsive_partners)
-
-            subjects = subjects.reset_index(drop=True).set_axis(col_axis, axis=1).copy()
-            partners = partners.reset_index(drop=True).set_axis(col_axis, axis=1).copy()
-        else:
-            y_axis, subjects, partners = auxfun_plotting.load_dict(
-                which="mean_all_rats",
-                z_score=z_score,
-                data_obj=data_obj,
-                event_pair=event_pair,
-                single=False,
-            )
-
-        sorted_idx = (
-            (subjects.iloc[:, onset_col_idx:] + partners.iloc[:, onset_col_idx:])
-            .mean(axis=1)
-            .sort_values()
-            .index
-        )
-        subject = subjects.reindex(sorted_idx).reset_index(drop=True).copy()
-        partner = partners.reindex(sorted_idx).reset_index(drop=True).copy()
-
-        auxfun_plotting.make_paired_heatmap(
-            subject=subject,
-            partner=partner,
-            event_pair=event_pair,
-            onset_col_idx=onset_col_idx,
-            colormap=colormap,
-            y_axis=y_axis,
-            filename=filename,
-            save_path=save_path,
-            xticklabel=x_tick,
-            yticklabel=y_tick,
-        )
+        dest = auxiliary.make_dir_save(save_path, rec_name) if rec_name else save_path
+        _save(fig, dest, f"{filename}_heatmap")
 
 
-def plot_nrns_per_structure(df: pd.DataFrame, save_path: str):
-    """Plot number of responsive neurons per structure. Optional."""
-    sns.set_style("darkgrid")
-    fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(8, 8))
+# ---------------------------------------------------------------------------
+# Common neurons matrix
+# ---------------------------------------------------------------------------
 
-    sns.barplot(
-        x=df.index,
-        y=df.values,
-        palette="colorblind",
-        legend=False,
-        hue=df.index,
+def plot_common_nrns_matrix(
+    data_obj: dict,
+    save_path: str,
+    per_recording: bool = False,
+    percent_all_neurons: bool = True,
+    colormap: str = "inferno",
+) -> None:
+    """Heatmap matrix of common responsive neurons between event pairs.
+
+    Args:
+        data_obj: output of structurize_data
+        save_path: root save directory
+        per_recording: one plot per recording when True
+        percent_all_neurons: show values as % of all neurons when True
+        colormap: Plotly colorscale name
+    Returns:
+        SVG file(s) saved to save_path
+    """
+    datasets = plot_data.get_common_matrix_data(data_obj, per_recording, percent_all_neurons)
+    events = data_obj["event_names"]
+
+    for df, rec_name in datasets:
+        # Mask upper triangle (show lower triangle only)
+        z = df.values.copy().astype(float)
+        mask = np.zeros_like(z, dtype=bool)
+        mask[np.triu_indices_from(mask, k=1)] = True
+        z[mask] = np.nan
+
+        colorbar_title = "% neurons" if percent_all_neurons else "# neurons"
+
+        fig = go.Figure(go.Heatmap(
+            z=z,
+            x=events,
+            y=events,
+            colorscale=colormap,
+            zmin=0,
+            zmax=np.nanmax(z),
+            colorbar=dict(title=dict(text=colorbar_title, side="right"), thickness=15),
+            text=np.where(mask, "", np.round(z, 1).astype(str)),
+            texttemplate="%{text}",
+            textfont=dict(size=11),
+        ))
+
+        title = f"{rec_name} — common neurons" if rec_name else "All recordings — common neurons"
+        fig.update_layout(
+            title=dict(text=title, font=_FONT),
+            xaxis=dict(title="Event", **_AXIS),
+            yaxis=dict(title="Event", autorange="reversed", **_AXIS),
+            **_LAYOUT,
         )
 
-    bars = ax.bar(df.index, df.values)
+        dest = auxiliary.make_dir_save(save_path, rec_name) if rec_name else save_path
+        fname = f"{rec_name}_common_neurons" if rec_name else "all_common_neurons"
+        _save(fig, dest, fname)
 
-    plt.tight_layout(pad=2)
 
-    ax.set_title("Per structure summary")
-    ax.set_xlabel("Structure")
-    ax.set_ylabel("# of neurons")
-    ax.bar_label(bars)
+# ---------------------------------------------------------------------------
+# Neurons per structure (bar)
+# ---------------------------------------------------------------------------
 
-    fig.savefig(os.path.join(save_path, "summary_per_structure.png"), dpi=300)
-    fig.clf()
+def plot_nrns_per_structure(df: pd.DataFrame, save_path: str) -> None:
+    """Bar chart of responsive neuron counts per brain structure.
 
+    Args:
+        df: Series/DataFrame with structure names as index and counts as values
+        save_path: directory to save the SVG
+    Returns:
+        SVG saved to save_path/summary_per_structure.png
+    """
+    structures = df.index.tolist()
+    values = df.values.tolist()
+
+    colors = (_COLORS * ((len(structures) // len(_COLORS)) + 1))[:len(structures)]
+
+    fig = go.Figure(go.Bar(
+        x=structures,
+        y=values,
+        marker_color=colors,
+        text=[str(int(v)) for v in values],
+        textposition="outside",
+        textfont=dict(size=11),
+    ))
+
+    fig.update_layout(
+        title=dict(text="Neurons per structure", font=_FONT),
+        xaxis=dict(title="Structure", **_AXIS),
+        yaxis=dict(title="# neurons", **_AXIS),
+        bargap=0.3,
+        **_LAYOUT,
+    )
+
+    _save(fig, save_path, "summary_per_structure")
+
+
+# ---------------------------------------------------------------------------
+# Structure × event heatmap
+# ---------------------------------------------------------------------------
 
 def plot_neurons_per_event_structure(
     data_folder: str | list,
@@ -676,80 +619,49 @@ def plot_neurons_per_event_structure(
     save_path: str,
     colormap: str = "inferno",
     per_recording: bool = False,
-):
-    """Creates a heatmap plot of structures vs events where intersection is a number of neurons from a specific structure
-    encoding a specific event. Neurons that respond to many events are repeated.
+) -> None:
+    """Heatmap of neuron counts per brain structure × event.
 
     Args:
-        data_folder: path to a folder containing all ephys data folders
-        data_obj: output of structurize_data. Stored in ephys_data.pickle
-        save_path: path to which the plots will be saved. Additional subfolders will be created on per-recording basis
-        per_recording: Toggles if the regression is done and plotted for all recorded neurons or on per-recording basis.
+        data_folder: path(s) to ephys data directories
+        data_obj: output of structurize_data
+        save_path: root save directory
+        colormap: Plotly colorscale name
+        per_recording: one plot per recording when True
+    Returns:
+        SVG file(s) saved to save_path
     """
-    data_folder = auxiliary.check_data_folder(data_folder)
-    rec_names = data_obj["recording_names"]
+    from seba.utils.auxiliary import check_data_folder
+    data_folder = check_data_folder(data_folder)
     event_names = data_obj["event_names"]
-    cols = data_obj["event_names"] + ["Structure"]
 
-    if per_recording:
-        for dir, rec_name in zip(data_folder, rec_names):
-            df = pd.read_csv(
-                    os.path.join(dir, "cluster_info_good.csv"),
-                    index_col="cluster_id",
-                    usecols=cols + ["cluster_id"],
-                )
-            df = df.loc[:, event_names + ["Structure"]].groupby("Structure").sum()
-            
-            auxfun_plotting.make_per_event_structure_plot(
-                df=df,
-                save_path=save_path,
-                event_names=event_names,
-                per_recording=per_recording,
-                colormap=colormap,
-                rec_name=rec_name,
-                )
-    else:
-        df_list = []
-        for dir in data_folder:
-            df_list.append(
-                pd.read_csv(
-                    os.path.join(dir, "cluster_info_good.csv"), 
-                    index_col="cluster_id", 
-                    usecols=cols + ["cluster_id"],
-                )
-            )
-        df = pd.concat(df_list).loc[:, event_names + ["Structure"]].groupby("Structure").sum()
-        
-        auxfun_plotting.make_per_event_structure_plot(
-            df=df,
-            save_path=save_path,
-            event_names=event_names,
-            colormap=colormap,
-            per_recording=per_recording,
-            )
+    # Shorten event names for readability (strip _onsets / _offsets suffix)
+    short_names = ["_".join(e.split("_")[:2]) if ("onsets" in e or "offsets" in e) else e for e in event_names]
 
+    datasets = plot_data.get_per_event_structure_data(data_folder, data_obj, per_recording)
 
-def plot_nrns_per_structure(df: pd.DataFrame, save_path: str):
-    """Plot number of responsive neurons per structure. Optional."""
-    sns.set_style("darkgrid")
-    fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(8, 8))
+    for df, rec_name in datasets:
+        df = df.rename(columns=dict(zip(event_names, short_names)))
 
-    sns.barplot(
-        x=df.index,
-        y=df.values,
-        palette="colorblind",
-        legend=False,
-        hue=df.index,
+        fig = go.Figure(go.Heatmap(
+            z=df.values,
+            x=df.columns.tolist(),
+            y=df.index.tolist(),
+            colorscale=colormap,
+            colorbar=dict(title=dict(text="# neurons", side="right"), thickness=15),
+            text=df.values.round(0).astype(int).astype(str),
+            texttemplate="%{text}",
+            textfont=dict(size=11),
+        ))
+
+        title = f"{rec_name} — structure × event" if rec_name else "All recordings — structure × event"
+        fig.update_layout(
+            title=dict(text=title, font=_FONT),
+            xaxis=dict(title="Event", **_AXIS),
+            yaxis=dict(title="Structure", autorange="reversed", **_AXIS),
+            **_LAYOUT,
         )
 
-    bars = ax.bar(df.index, df.values)
-
-    plt.tight_layout(pad=2)
-
-    ax.set_title("Per structure summary")
-    ax.set_xlabel("Structure")
-    ax.set_ylabel("# of neurons")
-    ax.bar_label(bars)
-
-    fig.savefig(os.path.join(save_path, "summary_per_structure.png"), dpi=300)
-    fig.clf()
+        dest = auxiliary.make_dir_save(save_path, rec_name) if rec_name else save_path
+        fname = f"{rec_name}_per_event_structure" if rec_name else "per_event_structure"
+        _save(fig, dest, fname)

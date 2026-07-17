@@ -1,0 +1,38 @@
+[build-system]
+requires      = [ "setuptools>=61.0" ]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "SEBA"
+version = "0.3"
+description = "Simple Ephys-Behavior Analysis"
+readme = "README.md"
+authors = [{ name = "Konrad Danielewski", email = "kdanielewski@nencki.edu.pl" }]
+requires-python = ">=3.10"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "numpy>2",
+    "plotly",
+    "scikit-learn",
+    "scipy",
+    "pandas",
+    "tables",
+    "statsmodels",
+    "kaleido",
+    "ipykernel",
+    "opencv-python",
+]
+
+[project.urls]
+Homepage = "https://github.com/KonradDanielewski/SEBA"
+
+[tool.setuptools]
+include-package-data = true
+
+    [tool.setuptools.packages.find]
+    where      = [ "." ]
+    include    = [ "seba*" ]
+    namespaces = true
